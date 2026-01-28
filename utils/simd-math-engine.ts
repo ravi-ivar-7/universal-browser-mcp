@@ -47,7 +47,7 @@ export class SIMDMathEngine {
       console.log('SIMDMathEngine: Initializing WebAssembly module...');
 
       const wasmUrl = chrome.runtime.getURL('workers/simd_math.js');
-      const wasmModule = await import(wasmUrl);
+      const wasmModule = await import(/* @vite-ignore */ wasmUrl);
 
       const wasmInstance = await wasmModule.default();
 

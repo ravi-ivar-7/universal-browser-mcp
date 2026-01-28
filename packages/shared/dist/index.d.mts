@@ -203,68 +203,6 @@ declare const TOOL_NAMES: {
 };
 declare const TOOL_SCHEMAS: Tool[];
 
-declare const EDGE_LABELS: {
-    readonly DEFAULT: "default";
-    readonly TRUE: "true";
-    readonly FALSE: "false";
-    readonly ON_ERROR: "onError";
-};
-type EdgeLabel = (typeof EDGE_LABELS)[keyof typeof EDGE_LABELS];
-
-interface RRNode {
-    id: string;
-    type: string;
-    config?: Record<string, unknown>;
-}
-interface RREdge {
-    id: string;
-    from: string;
-    to: string;
-    label?: EdgeLabel;
-}
-declare const RR_STEP_TYPES: {
-    readonly CLICK: "click";
-    readonly DBLCLICK: "dblclick";
-    readonly FILL: "fill";
-    readonly DRAG: "drag";
-    readonly KEY: "key";
-    readonly WAIT: "wait";
-    readonly ASSERT: "assert";
-    readonly IF: "if";
-    readonly FOREACH: "foreach";
-    readonly WHILE: "while";
-    readonly NAVIGATE: "navigate";
-    readonly SCRIPT: "script";
-    readonly HTTP: "http";
-    readonly EXTRACT: "extract";
-    readonly SCREENSHOT: "screenshot";
-    readonly SCROLL: "scroll";
-    readonly TRIGGER_EVENT: "triggerEvent";
-    readonly SET_ATTRIBUTE: "setAttribute";
-    readonly LOOP_ELEMENTS: "loopElements";
-    readonly SWITCH_FRAME: "switchFrame";
-    readonly OPEN_TAB: "openTab";
-    readonly SWITCH_TAB: "switchTab";
-    readonly CLOSE_TAB: "closeTab";
-    readonly EXECUTE_FLOW: "executeFlow";
-    readonly HANDLE_DOWNLOAD: "handleDownload";
-    readonly DELAY: "delay";
-};
-type RRStepType = (typeof RR_STEP_TYPES)[keyof typeof RR_STEP_TYPES];
-declare function topoOrder<T extends RRNode>(nodes: T[], edges: RREdge[]): T[];
-declare function mapNodeToStep(node: RRNode): any;
-declare function nodesToSteps(nodes: RRNode[], edges: RREdge[]): any[];
-declare function mapStepToNodeConfig(step: unknown): Record<string, unknown>;
-declare function stepsToNodes(steps: ReadonlyArray<unknown>): RRNode[];
-/**
- * Convert linear steps array to DAG format (nodes + edges).
- * Generates sequential edges connecting nodes in order.
- */
-declare function stepsToDAG(steps: ReadonlyArray<unknown>): {
-    nodes: RRNode[];
-    edges: RREdge[];
-};
-
 declare const STEP_TYPES: {
     readonly CLICK: "click";
     readonly DBLCLICK: "dblclick";
@@ -295,6 +233,14 @@ declare const STEP_TYPES: {
     readonly DELAY: "delay";
 };
 type StepTypeConst = (typeof STEP_TYPES)[keyof typeof STEP_TYPES];
+
+declare const EDGE_LABELS: {
+    readonly DEFAULT: "default";
+    readonly TRUE: "true";
+    readonly FALSE: "false";
+    readonly ON_ERROR: "onError";
+};
+type EdgeLabel = (typeof EDGE_LABELS)[keyof typeof EDGE_LABELS];
 
 type FieldType = 'string' | 'number' | 'boolean' | 'select' | 'object' | 'array' | 'json';
 interface FieldSpecBase {
@@ -796,4 +742,4 @@ type OpenProjectResponse = {
     error: string;
 };
 
-export { type AgentActRequest, type AgentActResponse, type AgentAttachment, type AgentCliPreference, type AgentConnectedEvent, type AgentEngineInfo, type AgentHeartbeatEvent, type AgentManagementInfo, type AgentMessage, type AgentProject, type AgentRole, type AgentSession, type AgentSessionOptionsConfig, type AgentStatusEvent, type AgentStoredMessage, type AgentSystemPromptConfig, type AgentToolsConfig, type AgentUsageStats, type AttachmentCleanupRequest, type AttachmentCleanupResponse, type AttachmentMetadata, type AttachmentProjectStats, type AttachmentStatsResponse, CODEX_AUTO_INSTRUCTIONS, type CleanupProjectResult, type CodexEngineConfig, type CodexReasoningEffort, type CodexSandboxMode, type CreateAgentSessionInput, DEFAULT_CODEX_CONFIG, DEFAULT_SERVER_PORT, EDGE_LABELS, type EdgeLabel, type ElementPickerRequest, type ElementPickerResult, type ElementPickerResultItem, type FieldArray, type FieldBoolean, type FieldJson, type FieldNumber, type FieldObject, type FieldSelect, type FieldSpec, type FieldSpecBase, type FieldString, type FieldType, HOST_NAME, type NativeMessage, NativeMessageType, type NodeCategory, type NodeSpec, type NodeSpecDisplay, type OpenProjectRequest, type OpenProjectResponse, type OpenProjectTarget, type PickedElement, type PickedElementPoint, type PickedElementRect, type RREdge, type RRNode, type RRStepType, RR_STEP_TYPES, type RealtimeEvent, STEP_TYPES, type StepTypeConst, type StreamTransport, TOOL_NAMES, TOOL_SCHEMAS, type UpdateAgentSessionInput, getNodeSpec, listNodeSpecs, mapNodeToStep, mapStepToNodeConfig, nodesToSteps, registerBuiltinSpecs, registerNodeSpec, stepsToDAG, stepsToNodes, topoOrder };
+export { type AgentActRequest, type AgentActResponse, type AgentAttachment, type AgentCliPreference, type AgentConnectedEvent, type AgentEngineInfo, type AgentHeartbeatEvent, type AgentManagementInfo, type AgentMessage, type AgentProject, type AgentRole, type AgentSession, type AgentSessionOptionsConfig, type AgentStatusEvent, type AgentStoredMessage, type AgentSystemPromptConfig, type AgentToolsConfig, type AgentUsageStats, type AttachmentCleanupRequest, type AttachmentCleanupResponse, type AttachmentMetadata, type AttachmentProjectStats, type AttachmentStatsResponse, CODEX_AUTO_INSTRUCTIONS, type CleanupProjectResult, type CodexEngineConfig, type CodexReasoningEffort, type CodexSandboxMode, type CreateAgentSessionInput, DEFAULT_CODEX_CONFIG, DEFAULT_SERVER_PORT, EDGE_LABELS, type EdgeLabel, type ElementPickerRequest, type ElementPickerResult, type ElementPickerResultItem, type FieldArray, type FieldBoolean, type FieldJson, type FieldNumber, type FieldObject, type FieldSelect, type FieldSpec, type FieldSpecBase, type FieldString, type FieldType, HOST_NAME, type NativeMessage, NativeMessageType, type NodeCategory, type NodeSpec, type NodeSpecDisplay, type OpenProjectRequest, type OpenProjectResponse, type OpenProjectTarget, type PickedElement, type PickedElementPoint, type PickedElementRect, type RealtimeEvent, STEP_TYPES, type StepTypeConst, type StreamTransport, TOOL_NAMES, TOOL_SCHEMAS, type UpdateAgentSessionInput, getNodeSpec, listNodeSpecs, registerBuiltinSpecs, registerNodeSpec };

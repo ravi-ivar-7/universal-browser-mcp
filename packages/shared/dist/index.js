@@ -26,20 +26,13 @@ __export(index_exports, {
   EDGE_LABELS: () => EDGE_LABELS,
   HOST_NAME: () => HOST_NAME,
   NativeMessageType: () => NativeMessageType,
-  RR_STEP_TYPES: () => RR_STEP_TYPES,
   STEP_TYPES: () => STEP_TYPES,
   TOOL_NAMES: () => TOOL_NAMES,
   TOOL_SCHEMAS: () => TOOL_SCHEMAS,
   getNodeSpec: () => getNodeSpec,
   listNodeSpecs: () => listNodeSpecs,
-  mapNodeToStep: () => mapNodeToStep,
-  mapStepToNodeConfig: () => mapStepToNodeConfig,
-  nodesToSteps: () => nodesToSteps,
   registerBuiltinSpecs: () => registerBuiltinSpecs,
-  registerNodeSpec: () => registerNodeSpec,
-  stepsToDAG: () => stepsToDAG,
-  stepsToNodes: () => stepsToNodes,
-  topoOrder: () => topoOrder
+  registerNodeSpec: () => registerNodeSpec
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -1381,315 +1374,6 @@ Tip: If the returned elements do not include the specific element you need, use 
   }
 ];
 
-// src/labels.ts
-var EDGE_LABELS = {
-  DEFAULT: "default",
-  TRUE: "true",
-  FALSE: "false",
-  ON_ERROR: "onError"
-};
-
-// src/rr-graph.ts
-var RR_STEP_TYPES = {
-  CLICK: "click",
-  DBLCLICK: "dblclick",
-  FILL: "fill",
-  DRAG: "drag",
-  KEY: "key",
-  WAIT: "wait",
-  ASSERT: "assert",
-  IF: "if",
-  FOREACH: "foreach",
-  WHILE: "while",
-  NAVIGATE: "navigate",
-  SCRIPT: "script",
-  HTTP: "http",
-  EXTRACT: "extract",
-  SCREENSHOT: "screenshot",
-  SCROLL: "scroll",
-  TRIGGER_EVENT: "triggerEvent",
-  SET_ATTRIBUTE: "setAttribute",
-  LOOP_ELEMENTS: "loopElements",
-  SWITCH_FRAME: "switchFrame",
-  OPEN_TAB: "openTab",
-  SWITCH_TAB: "switchTab",
-  CLOSE_TAB: "closeTab",
-  EXECUTE_FLOW: "executeFlow",
-  HANDLE_DOWNLOAD: "handleDownload",
-  // UI-only, mapped to WAIT
-  DELAY: "delay"
-};
-function ensureTarget(t) {
-  return t && typeof t === "object" ? t : { candidates: [] };
-}
-function topoOrder(nodes, edges) {
-  const id2n = new Map(nodes.map((n) => [n.id, n]));
-  const indeg = new Map(nodes.map((n) => [n.id, 0]));
-  for (const e of edges) indeg.set(e.to, (indeg.get(e.to) || 0) + 1);
-  const nexts = new Map(nodes.map((n) => [n.id, []]));
-  for (const e of edges) nexts.get(e.from).push(e.to);
-  const q = nodes.filter((n) => (indeg.get(n.id) || 0) === 0).map((n) => n.id);
-  const out = [];
-  while (q.length) {
-    const id = q.shift();
-    const n = id2n.get(id);
-    if (!n) continue;
-    out.push(n);
-    for (const v of nexts.get(id)) {
-      indeg.set(v, (indeg.get(v) || 0) - 1);
-      if ((indeg.get(v) || 0) === 0) q.push(v);
-    }
-  }
-  return out.length === nodes.length ? out : nodes.slice();
-}
-function mapNodeToStep(node) {
-  const c = node.config || {};
-  const base = { id: node.id };
-  try {
-    const type = String(node.type);
-    if (type === "delay") {
-      const sleep = Number(c.sleep ?? c.ms ?? 1e3);
-      return { ...base, type: "wait", condition: { sleep: Math.max(0, sleep) } };
-    }
-    const step = { ...base, type, ...c };
-    if (step.target) step.target = ensureTarget(step.target);
-    if (step.start) step.start = ensureTarget(step.start);
-    if (step.end) step.end = ensureTarget(step.end);
-    return step;
-  } catch {
-  }
-  switch (node.type) {
-    case RR_STEP_TYPES.CLICK:
-    case RR_STEP_TYPES.DBLCLICK:
-      return {
-        ...base,
-        type: node.type,
-        target: ensureTarget(c.target),
-        before: c.before,
-        after: c.after
-      };
-    case RR_STEP_TYPES.FILL:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.FILL,
-        target: ensureTarget(c.target),
-        value: c.value || ""
-      };
-    case RR_STEP_TYPES.DRAG:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.DRAG,
-        start: ensureTarget(c.start),
-        end: ensureTarget(c.end),
-        path: Array.isArray(c.path) ? c.path : void 0
-      };
-    case RR_STEP_TYPES.KEY:
-      return { ...base, type: RR_STEP_TYPES.KEY, keys: c.keys || "" };
-    case RR_STEP_TYPES.WAIT:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.WAIT,
-        condition: c.condition || { text: "", appear: true }
-      };
-    case RR_STEP_TYPES.ASSERT:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.ASSERT,
-        assert: c.assert || { exists: "" },
-        failStrategy: c.failStrategy
-      };
-    case RR_STEP_TYPES.IF:
-      return { ...base, type: RR_STEP_TYPES.IF, condition: c.condition || {} };
-    case RR_STEP_TYPES.FOREACH:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.FOREACH,
-        listVar: c.listVar || "",
-        itemVar: c.itemVar || "item",
-        subflowId: c.subflowId || ""
-      };
-    case RR_STEP_TYPES.WHILE:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.WHILE,
-        condition: c.condition || {},
-        subflowId: c.subflowId || "",
-        maxIterations: Math.max(0, Number(c.maxIterations ?? 100))
-      };
-    case RR_STEP_TYPES.NAVIGATE:
-      return { ...base, type: RR_STEP_TYPES.NAVIGATE, url: c.url || "" };
-    case RR_STEP_TYPES.SCRIPT:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.SCRIPT,
-        world: c.world || "ISOLATED",
-        code: c.code || "",
-        when: c.when
-      };
-    case RR_STEP_TYPES.DELAY:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.WAIT,
-        condition: { sleep: Math.max(0, Number(c.ms ?? 1e3)) }
-      };
-    case RR_STEP_TYPES.HTTP:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.HTTP,
-        method: c.method || "GET",
-        url: c.url || "",
-        headers: c.headers || {},
-        body: c.body,
-        formData: c.formData,
-        saveAs: c.saveAs || ""
-      };
-    case RR_STEP_TYPES.EXTRACT:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.EXTRACT,
-        selector: c.selector || "",
-        attr: c.attr || "text",
-        js: c.js || "",
-        saveAs: c.saveAs || ""
-      };
-    case RR_STEP_TYPES.SCREENSHOT:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.SCREENSHOT,
-        selector: c.selector || "",
-        fullPage: !!c.fullPage,
-        saveAs: c.saveAs || ""
-      };
-    case RR_STEP_TYPES.SCROLL:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.SCROLL,
-        mode: c.mode || "offset",
-        target: ensureTarget(c.target),
-        offset: c.offset || { x: 0, y: 300 }
-      };
-    case RR_STEP_TYPES.TRIGGER_EVENT:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.TRIGGER_EVENT,
-        target: ensureTarget(c.target),
-        event: c.event || "input",
-        bubbles: c.bubbles !== false,
-        cancelable: !!c.cancelable
-      };
-    case RR_STEP_TYPES.SET_ATTRIBUTE:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.SET_ATTRIBUTE,
-        target: ensureTarget(c.target),
-        name: c.name || "",
-        value: c.value,
-        remove: !!c.remove
-      };
-    case RR_STEP_TYPES.LOOP_ELEMENTS:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.LOOP_ELEMENTS,
-        selector: c.selector || "",
-        saveAs: c.saveAs || "elements",
-        itemVar: c.itemVar || "item",
-        subflowId: c.subflowId || ""
-      };
-    case RR_STEP_TYPES.SWITCH_FRAME:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.SWITCH_FRAME,
-        frame: {
-          index: c.frame && c.frame.index != null ? Number(c.frame.index) : void 0,
-          urlContains: c.frame?.urlContains || ""
-        }
-      };
-    case RR_STEP_TYPES.OPEN_TAB:
-      return { ...base, type: RR_STEP_TYPES.OPEN_TAB, url: c.url || "", newWindow: !!c.newWindow };
-    case RR_STEP_TYPES.SWITCH_TAB:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.SWITCH_TAB,
-        tabId: c.tabId || void 0,
-        urlContains: c.urlContains || "",
-        titleContains: c.titleContains || ""
-      };
-    case RR_STEP_TYPES.CLOSE_TAB:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.CLOSE_TAB,
-        tabIds: Array.isArray(c.tabIds) ? c.tabIds : void 0,
-        url: c.url || ""
-      };
-    case RR_STEP_TYPES.EXECUTE_FLOW:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.EXECUTE_FLOW,
-        flowId: c.flowId || "",
-        inline: c.inline !== false,
-        args: c.args || {}
-      };
-    case RR_STEP_TYPES.HANDLE_DOWNLOAD:
-      return {
-        ...base,
-        type: RR_STEP_TYPES.HANDLE_DOWNLOAD,
-        filenameContains: c.filenameContains || "",
-        waitForComplete: c.waitForComplete !== false,
-        timeoutMs: Math.max(0, Number(c.timeoutMs ?? 6e4)),
-        saveAs: c.saveAs || ""
-      };
-    default:
-      return { ...base, type: RR_STEP_TYPES.SCRIPT, world: "ISOLATED", code: "" };
-  }
-}
-function nodesToSteps(nodes, edges) {
-  const order = edges && edges.length ? topoOrder(nodes, edges) : nodes.slice();
-  return order.map((n) => mapNodeToStep(n));
-}
-function mapStepToNodeConfig(step) {
-  if (!step || typeof step !== "object") return {};
-  const src = step;
-  const out = {};
-  for (const [k, v] of Object.entries(src)) {
-    if (k === "id" || k === "type") continue;
-    out[k] = v;
-  }
-  const target = out["target"];
-  if (target) out["target"] = ensureTarget(target);
-  const start = out["start"];
-  if (start) out["start"] = ensureTarget(start);
-  const end = out["end"];
-  if (end) out["end"] = ensureTarget(end);
-  return out;
-}
-function stepsToNodes(steps) {
-  const arr = [];
-  steps.forEach((step, i) => {
-    const obj = step && typeof step === "object" ? step : {};
-    const idValue = obj["id"];
-    const typeValue = obj["type"];
-    const id = typeof idValue === "string" && idValue ? idValue : `n_${i}`;
-    const type = typeof typeValue === "string" && typeValue ? typeValue : RR_STEP_TYPES.SCRIPT;
-    arr.push({ id, type, config: mapStepToNodeConfig(step) });
-  });
-  return arr;
-}
-function stepsToDAG(steps) {
-  const nodes = stepsToNodes(steps);
-  const edges = [];
-  for (let i = 0; i < nodes.length - 1; i++) {
-    const from = nodes[i].id;
-    const to = nodes[i + 1].id;
-    edges.push({
-      id: `e_${i}_${from}_${to}`,
-      from,
-      to,
-      label: EDGE_LABELS.DEFAULT
-    });
-  }
-  return { nodes, edges };
-}
-
 // src/step-types.ts
 var STEP_TYPES = {
   CLICK: "click",
@@ -1722,6 +1406,14 @@ var STEP_TYPES = {
   DELAY: "delay"
 };
 
+// src/labels.ts
+var EDGE_LABELS = {
+  DEFAULT: "default",
+  TRUE: "true",
+  FALSE: "false",
+  ON_ERROR: "onError"
+};
+
 // src/node-spec-registry.ts
 var REG = /* @__PURE__ */ new Map();
 function registerNodeSpec(spec) {
@@ -1739,7 +1431,7 @@ function registerBuiltinSpecs() {
   const nav = {
     type: STEP_TYPES.NAVIGATE,
     version: 1,
-    display: { label: "\u5BFC\u822A", iconClass: "icon-navigate", category: "Actions" },
+    display: { label: "Navigate", iconClass: "icon-navigate", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
@@ -1748,14 +1440,14 @@ function registerBuiltinSpecs() {
         type: "string",
         required: true,
         placeholder: "https://example.com",
-        help: "\u76EE\u6807\u5730\u5740\uFF0C\u652F\u6301\u53D8\u91CF\u6A21\u677F {var}",
+        help: "Target URL, supports {var} templates",
         default: ""
       }
     ],
     defaults: { url: "" },
     validate: (cfg) => {
       const errs = [];
-      if (!cfg || !cfg.url || String(cfg.url).trim() === "") errs.push("URL \u5FC5\u586B");
+      if (!cfg || !cfg.url || String(cfg.url).trim() === "") errs.push("URL is required");
       return errs;
     }
   };
@@ -1763,32 +1455,32 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.CLICK,
     version: 1,
-    display: { label: "\u70B9\u51FB", iconClass: "icon-click", category: "Actions" },
+    display: { label: "Click", iconClass: "icon-click", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
         key: "target",
-        label: "\u76EE\u6807",
+        label: "Target",
         type: "json",
         widget: "targetlocator",
-        help: "\u9009\u62E9\u6216\u8F93\u5165\u5143\u7D20\u9009\u62E9\u5668"
+        help: "Select or enter element selector"
       },
       {
         key: "before",
-        label: "\u6267\u884C\u524D",
+        label: "Before",
         type: "object",
         fields: [
-          { key: "scrollIntoView", label: "\u6EDA\u52A8\u5230\u53EF\u89C1", type: "boolean", default: true },
-          { key: "waitForSelector", label: "\u7B49\u5F85\u9009\u62E9\u5668", type: "boolean", default: true }
+          { key: "scrollIntoView", label: "Scroll into View", type: "boolean", default: true },
+          { key: "waitForSelector", label: "Wait for Selector", type: "boolean", default: true }
         ]
       },
       {
         key: "after",
-        label: "\u6267\u884C\u540E",
+        label: "After",
         type: "object",
         fields: [
-          { key: "waitForNavigation", label: "\u7B49\u5F85\u5BFC\u822A\u5B8C\u6210", type: "boolean", default: false },
-          { key: "waitForNetworkIdle", label: "\u7B49\u5F85\u7F51\u7EDC\u7A7A\u95F2", type: "boolean", default: false }
+          { key: "waitForNavigation", label: "Wait for Navigation", type: "boolean", default: false },
+          { key: "waitForNetworkIdle", label: "Wait for Network Idle", type: "boolean", default: false }
         ]
       }
     ],
@@ -1797,26 +1489,26 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.DBLCLICK,
     version: 1,
-    display: { label: "\u53CC\u51FB", iconClass: "icon-click", category: "Actions" },
+    display: { label: "Double Click", iconClass: "icon-click", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "target", label: "\u76EE\u6807", type: "json", widget: "targetlocator" },
+      { key: "target", label: "Target", type: "json", widget: "targetlocator" },
       {
         key: "before",
-        label: "\u6267\u884C\u524D",
+        label: "Before",
         type: "object",
         fields: [
-          { key: "scrollIntoView", label: "\u6EDA\u52A8\u5230\u53EF\u89C1", type: "boolean", default: true },
-          { key: "waitForSelector", label: "\u7B49\u5F85\u9009\u62E9\u5668", type: "boolean", default: true }
+          { key: "scrollIntoView", label: "Scroll into View", type: "boolean", default: true },
+          { key: "waitForSelector", label: "Wait for Selector", type: "boolean", default: true }
         ]
       },
       {
         key: "after",
-        label: "\u6267\u884C\u540E",
+        label: "After",
         type: "object",
         fields: [
-          { key: "waitForNavigation", label: "\u7B49\u5F85\u5BFC\u822A\u5B8C\u6210", type: "boolean", default: false },
-          { key: "waitForNetworkIdle", label: "\u7B49\u5F85\u7F51\u7EDC\u7A7A\u95F2", type: "boolean", default: false }
+          { key: "waitForNavigation", label: "Wait for Navigation", type: "boolean", default: false },
+          { key: "waitForNetworkIdle", label: "Wait for Network Idle", type: "boolean", default: false }
         ]
       }
     ],
@@ -1825,53 +1517,53 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.FILL,
     version: 1,
-    display: { label: "\u586B\u5145", iconClass: "icon-fill", category: "Actions" },
+    display: { label: "Fill Input", iconClass: "icon-fill", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "target", label: "\u76EE\u6807", type: "json", widget: "targetlocator" },
-      { key: "value", label: "\u8F93\u5165\u503C", type: "string", required: true, help: "\u652F\u6301 {var} \u6A21\u677F" }
+      { key: "target", label: "Target", type: "json", widget: "targetlocator" },
+      { key: "value", label: "Value", type: "string", required: true, help: "Supports {var} templates" }
     ],
     defaults: { value: "" }
   });
   registerNodeSpec({
     type: STEP_TYPES.KEY,
     version: 1,
-    display: { label: "\u952E\u76D8", iconClass: "icon-key", category: "Actions" },
+    display: { label: "Press Key", iconClass: "icon-key", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
         key: "keys",
-        label: "\u6309\u952E\u5E8F\u5217",
+        label: "Key Sequence",
         type: "string",
         widget: "keysequence",
         required: true,
-        help: "\u5982 Backspace Enter \u6216 cmd+a"
+        help: "e.g., Backspace, Enter, or cmd+a"
       },
-      { key: "target", label: "\u7126\u70B9\u76EE\u6807(\u53EF\u9009)", type: "json", widget: "targetlocator" }
+      { key: "target", label: "Target (Optional)", type: "json", widget: "targetlocator" }
     ],
     defaults: { keys: "" }
   });
   registerNodeSpec({
     type: STEP_TYPES.SCROLL,
     version: 1,
-    display: { label: "\u6EDA\u52A8", iconClass: "icon-scroll", category: "Actions" },
+    display: { label: "Scroll", iconClass: "icon-scroll", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
         key: "mode",
-        label: "\u6A21\u5F0F",
+        label: "Mode",
         type: "select",
         options: [
-          { label: "\u5143\u7D20", value: "element" },
-          { label: "\u504F\u79FB", value: "offset" },
-          { label: "\u5BB9\u5668", value: "container" }
+          { label: "Element", value: "element" },
+          { label: "Offset", value: "offset" },
+          { label: "Container", value: "container" }
         ],
         default: "offset"
       },
-      { key: "target", label: "\u76EE\u6807(\u5F53\u5143\u7D20/\u5BB9\u5668)", type: "json", widget: "targetlocator" },
+      { key: "target", label: "Target (Element/Container)", type: "json", widget: "targetlocator" },
       {
         key: "offset",
-        label: "\u504F\u79FB",
+        label: "Offset",
         type: "object",
         fields: [
           { key: "x", label: "X", type: "number" },
@@ -1884,18 +1576,18 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.DRAG,
     version: 1,
-    display: { label: "\u62D6\u62FD", iconClass: "icon-drag", category: "Actions" },
+    display: { label: "Drag", iconClass: "icon-drag", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "start", label: "\u8D77\u70B9", type: "json", widget: "targetlocator" },
-      { key: "end", label: "\u7EC8\u70B9", type: "json", widget: "targetlocator" },
+      { key: "start", label: "Start Point", type: "json", widget: "targetlocator" },
+      { key: "end", label: "End Point", type: "json", widget: "targetlocator" },
       {
         key: "path",
-        label: "\u8DEF\u5F84\u5750\u6807",
+        label: "Path Coordinates",
         type: "array",
         item: {
           key: "p",
-          label: "\u70B9",
+          label: "Point",
           type: "object",
           fields: [
             { key: "x", label: "X", type: "number" },
@@ -1909,14 +1601,14 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.WAIT,
     version: 1,
-    display: { label: "\u7B49\u5F85", iconClass: "icon-wait", category: "Actions" },
+    display: { label: "Wait", iconClass: "icon-wait", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
         key: "condition",
-        label: "\u6761\u4EF6(JSON)",
+        label: "Condition (JSON)",
         type: "json",
-        help: '\u5982 {"sleep":1000} \u6216 {"text":"Hello","appear":true}'
+        help: 'e.g. {"sleep":1000} or {"text":"Hello","appear":true}'
       }
     ],
     defaults: { condition: { sleep: 500 } }
@@ -1924,23 +1616,23 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.ASSERT,
     version: 1,
-    display: { label: "\u65AD\u8A00", iconClass: "icon-assert", category: "Actions" },
+    display: { label: "Assert", iconClass: "icon-assert", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }, { label: "onError" }] },
     schema: [
       {
         key: "assert",
-        label: "\u65AD\u8A00(JSON)",
+        label: "Assertion (JSON)",
         type: "json",
-        help: '\u5982 {"exists":"#id"} / {"visible":".btn"}'
+        help: 'e.g. {"exists":"#id"} / {"visible":".btn"}'
       },
       {
         key: "failStrategy",
-        label: "\u5931\u8D25\u7B56\u7565",
+        label: "Failure Strategy",
         type: "select",
         options: [
-          { label: "\u505C\u6B62", value: "stop" },
-          { label: "\u8B66\u544A", value: "warn" },
-          { label: "\u91CD\u8BD5", value: "retry" }
+          { label: "Stop", value: "stop" },
+          { label: "Warn", value: "warn" },
+          { label: "Retry", value: "retry" }
         ],
         default: "stop"
       }
@@ -1950,12 +1642,12 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.HTTP,
     version: 1,
-    display: { label: "HTTP", iconClass: "icon-http", category: "Tools" },
+    display: { label: "HTTP Request", iconClass: "icon-http", category: "Tools" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
         key: "method",
-        label: "\u65B9\u6CD5",
+        label: "Method",
         type: "select",
         options: ["GET", "POST", "PUT", "PATCH", "DELETE"].map((m) => ({
           label: m,
@@ -1964,100 +1656,100 @@ function registerBuiltinSpecs() {
         default: "GET"
       },
       { key: "url", label: "URL", type: "string", required: true },
-      { key: "headers", label: "\u8BF7\u6C42\u5934(JSON)", type: "json" },
-      { key: "body", label: "\u8BF7\u6C42\u4F53(JSON)", type: "json" },
-      { key: "formData", label: "\u8868\u5355(JSON)", type: "json" },
-      { key: "saveAs", label: "\u4FDD\u5B58\u4E3A\u53D8\u91CF", type: "string" },
-      { key: "assign", label: "\u6620\u5C04(JSON)", type: "json" }
+      { key: "headers", label: "Headers (JSON)", type: "json" },
+      { key: "body", label: "Body (JSON)", type: "json" },
+      { key: "formData", label: "Form Data (JSON)", type: "json" },
+      { key: "saveAs", label: "Save Response As", type: "string" },
+      { key: "assign", label: "Variable Mapping (JSON)", type: "json" }
     ],
     defaults: { method: "GET" }
   });
   registerNodeSpec({
     type: STEP_TYPES.EXTRACT,
     version: 1,
-    display: { label: "\u63D0\u53D6", iconClass: "icon-extract", category: "Tools" },
+    display: { label: "Extract Data", iconClass: "icon-extract", category: "Tools" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "selector", label: "\u9009\u62E9\u5668", type: "string", widget: "selector" },
+      { key: "selector", label: "Selector", type: "string", widget: "selector" },
       {
         key: "attr",
-        label: "\u5C5E\u6027",
+        label: "Attribute",
         type: "select",
         options: [
-          { label: "\u6587\u672C(text)", value: "text" },
-          { label: "\u6587\u672C(textContent)", value: "textContent" },
-          { label: "\u81EA\u5B9A\u4E49\u5C5E\u6027\u540D", value: "attr" }
+          { label: "Text (text)", value: "text" },
+          { label: "Text Content (textContent)", value: "textContent" },
+          { label: "Custom Attribute", value: "attr" }
         ]
       },
-      { key: "js", label: "\u81EA\u5B9A\u4E49JS", type: "string", help: "\u5728\u9875\u9762\u4E2D\u6267\u884C\u5E76\u8FD4\u56DE\u503C" },
-      { key: "saveAs", label: "\u4FDD\u5B58\u53D8\u91CF", type: "string", required: true }
+      { key: "js", label: "Custom JS", type: "string", help: "Run in page context and return value" },
+      { key: "saveAs", label: "Save As Variable", type: "string", required: true }
     ],
     defaults: { saveAs: "" }
   });
   registerNodeSpec({
     type: STEP_TYPES.SCREENSHOT,
     version: 1,
-    display: { label: "\u622A\u56FE", iconClass: "icon-screenshot", category: "Tools" },
+    display: { label: "Screenshot", iconClass: "icon-screenshot", category: "Tools" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "selector", label: "\u76EE\u6807\u9009\u62E9\u5668", type: "string" },
-      { key: "fullPage", label: "\u6574\u9875\u622A\u56FE", type: "boolean", default: false },
-      { key: "saveAs", label: "\u4FDD\u5B58\u53D8\u91CF", type: "string" }
+      { key: "selector", label: "Target Selector", type: "string" },
+      { key: "fullPage", label: "Full Page", type: "boolean", default: false },
+      { key: "saveAs", label: "Save As Variable", type: "string" }
     ],
     defaults: { fullPage: false }
   });
   registerNodeSpec({
     type: STEP_TYPES.TRIGGER_EVENT,
     version: 1,
-    display: { label: "\u89E6\u53D1\u4E8B\u4EF6", iconClass: "icon-trigger", category: "Tools" },
+    display: { label: "Trigger Event", iconClass: "icon-trigger", category: "Tools" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "target", label: "\u76EE\u6807", type: "json", widget: "targetlocator" },
-      { key: "event", label: "\u4E8B\u4EF6\u7C7B\u578B", type: "string", required: true },
-      { key: "bubbles", label: "\u5192\u6CE1", type: "boolean", default: true },
-      { key: "cancelable", label: "\u53EF\u53D6\u6D88", type: "boolean", default: false }
+      { key: "target", label: "Target", type: "json", widget: "targetlocator" },
+      { key: "event", label: "Event Type", type: "string", required: true },
+      { key: "bubbles", label: "Bubbles", type: "boolean", default: true },
+      { key: "cancelable", label: "Cancelable", type: "boolean", default: false }
     ],
     defaults: { event: "" }
   });
   registerNodeSpec({
     type: STEP_TYPES.SET_ATTRIBUTE,
     version: 1,
-    display: { label: "\u8BBE\u7F6E\u5C5E\u6027", iconClass: "icon-attr", category: "Tools" },
+    display: { label: "Set Attribute", iconClass: "icon-attr", category: "Tools" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "target", label: "\u76EE\u6807", type: "json", widget: "targetlocator" },
-      { key: "name", label: "\u5C5E\u6027\u540D", type: "string", required: true },
-      { key: "value", label: "\u5C5E\u6027\u503C", type: "string" },
-      { key: "remove", label: "\u79FB\u9664\u5C5E\u6027", type: "boolean", default: false }
+      { key: "target", label: "Target", type: "json", widget: "targetlocator" },
+      { key: "name", label: "Attribute Name", type: "string", required: true },
+      { key: "value", label: "Attribute Value", type: "string" },
+      { key: "remove", label: "Remove Attribute", type: "boolean", default: false }
     ],
     defaults: { remove: false }
   });
   registerNodeSpec({
     type: STEP_TYPES.LOOP_ELEMENTS,
     version: 1,
-    display: { label: "\u5FAA\u73AF\u5143\u7D20", iconClass: "icon-loop", category: "Tools" },
+    display: { label: "Loop Elements", iconClass: "icon-loop", category: "Tools" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "selector", label: "\u9009\u62E9\u5668", type: "string", required: true },
-      { key: "saveAs", label: "\u5217\u8868\u53D8\u91CF\u540D", type: "string", default: "elements" },
-      { key: "itemVar", label: "\u9879\u53D8\u91CF\u540D", type: "string", default: "item" },
-      { key: "subflowId", label: "\u5B50\u6D41\u7A0BID", type: "string", required: true }
+      { key: "selector", label: "Selector", type: "string", required: true },
+      { key: "saveAs", label: "List Variable Name", type: "string", default: "elements" },
+      { key: "itemVar", label: "Item Variable Name", type: "string", default: "item" },
+      { key: "subflowId", label: "Subflow ID", type: "string", required: true }
     ],
     defaults: { saveAs: "elements", itemVar: "item" }
   });
   registerNodeSpec({
     type: STEP_TYPES.SWITCH_FRAME,
     version: 1,
-    display: { label: "\u5207\u6362Frame", iconClass: "icon-frame", category: "Tools" },
+    display: { label: "Switch Frame", iconClass: "icon-frame", category: "Tools" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
         key: "frame",
-        label: "frame\u5B9A\u4F4D",
+        label: "Frame Locator",
         type: "object",
         fields: [
-          { key: "index", label: "\u7D22\u5F15", type: "number" },
-          { key: "urlContains", label: "URL\u5305\u542B", type: "string" }
+          { key: "index", label: "Index", type: "number" },
+          { key: "urlContains", label: "URL Contains", type: "string" }
         ]
       }
     ],
@@ -2066,25 +1758,25 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.HANDLE_DOWNLOAD,
     version: 1,
-    display: { label: "\u4E0B\u8F7D\u5904\u7406", iconClass: "icon-download", category: "Tools" },
+    display: { label: "Handle Download", iconClass: "icon-download", category: "Tools" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "filenameContains", label: "\u6587\u4EF6\u540D\u5305\u542B", type: "string" },
-      { key: "waitForComplete", label: "\u7B49\u5F85\u5B8C\u6210", type: "boolean", default: true },
-      { key: "timeoutMs", label: "\u8D85\u65F6(ms)", type: "number", default: 6e4 },
-      { key: "saveAs", label: "\u4FDD\u5B58\u53D8\u91CF", type: "string" }
+      { key: "filenameContains", label: "Filename Contains", type: "string" },
+      { key: "waitForComplete", label: "Wait for Completion", type: "boolean", default: true },
+      { key: "timeoutMs", label: "Timeout (ms)", type: "number", default: 6e4 },
+      { key: "saveAs", label: "Save As Variable", type: "string" }
     ],
     defaults: { waitForComplete: true, timeoutMs: 6e4 }
   });
   registerNodeSpec({
     type: STEP_TYPES.SCRIPT,
     version: 1,
-    display: { label: "\u811A\u672C", iconClass: "icon-script", category: "Tools" },
+    display: { label: "Run Script", iconClass: "icon-script", category: "Tools" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
         key: "world",
-        label: "\u6267\u884C\u4E0A\u4E0B\u6587",
+        label: "Execution Context",
         type: "select",
         options: [
           { label: "ISOLATED", value: "ISOLATED" },
@@ -2092,10 +1784,10 @@ function registerBuiltinSpecs() {
         ],
         default: "ISOLATED"
       },
-      { key: "code", label: "\u811A\u672C\u4EE3\u7801", type: "string", widget: "code", required: true },
+      { key: "code", label: "Script Code", type: "string", widget: "code", required: true },
       {
         key: "when",
-        label: "\u6267\u884C\u65F6\u673A",
+        label: "Timing",
         type: "select",
         options: [
           { label: "before", value: "before" },
@@ -2103,57 +1795,57 @@ function registerBuiltinSpecs() {
         ],
         default: "after"
       },
-      { key: "assign", label: "\u6620\u5C04(JSON)", type: "json" },
-      { key: "saveAs", label: "\u4FDD\u5B58\u53D8\u91CF", type: "string" }
+      { key: "assign", label: "Return Mapping (JSON)", type: "json" },
+      { key: "saveAs", label: "Save Return As", type: "string" }
     ],
     defaults: { world: "ISOLATED", when: "after" }
   });
   registerNodeSpec({
     type: STEP_TYPES.OPEN_TAB,
     version: 1,
-    display: { label: "\u6253\u5F00\u6807\u7B7E", iconClass: "icon-openTab", category: "Tabs" },
+    display: { label: "Open Tab", iconClass: "icon-openTab", category: "Tabs" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       { key: "url", label: "URL", type: "string" },
-      { key: "newWindow", label: "\u65B0\u7A97\u53E3", type: "boolean", default: false }
+      { key: "newWindow", label: "New Window", type: "boolean", default: false }
     ],
     defaults: { newWindow: false }
   });
   registerNodeSpec({
     type: "executeFlow",
     version: 1,
-    display: { label: "\u6267\u884C\u5B50\u6D41\u7A0B", iconClass: "icon-exec", category: "Flow" },
+    display: { label: "Execute Subflow", iconClass: "icon-exec", category: "Flow" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "flowId", label: "\u6D41\u7A0BID", type: "string", required: true },
-      { key: "inline", label: "\u5185\u8054\u6267\u884C", type: "boolean", default: false },
-      { key: "args", label: "\u53C2\u6570(JSON)", type: "json" }
+      { key: "flowId", label: "Flow ID", type: "string", required: true },
+      { key: "inline", label: "Inline Execution", type: "boolean", default: false },
+      { key: "args", label: "Arguments (JSON)", type: "json" }
     ],
     defaults: { inline: false }
   });
   registerNodeSpec({
     type: STEP_TYPES.SWITCH_TAB,
     version: 1,
-    display: { label: "\u5207\u6362\u6807\u7B7E", iconClass: "icon-switchTab", category: "Tabs" },
+    display: { label: "Switch Tab", iconClass: "icon-switchTab", category: "Tabs" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "tabId", label: "TabId", type: "number" },
-      { key: "urlContains", label: "URL\u5305\u542B", type: "string" },
-      { key: "titleContains", label: "\u6807\u9898\u5305\u542B", type: "string" }
+      { key: "tabId", label: "Tab ID", type: "number" },
+      { key: "urlContains", label: "URL Contains", type: "string" },
+      { key: "titleContains", label: "Title Contains", type: "string" }
     ],
     defaults: {}
   });
   registerNodeSpec({
     type: STEP_TYPES.CLOSE_TAB,
     version: 1,
-    display: { label: "\u5173\u95ED\u6807\u7B7E", iconClass: "icon-closeTab", category: "Tabs" },
+    display: { label: "Close Tab", iconClass: "icon-closeTab", category: "Tabs" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
         key: "tabIds",
-        label: "TabIds",
+        label: "Tab IDs",
         type: "array",
-        item: { key: "id", label: "id", type: "number" }
+        item: { key: "id", label: "ID", type: "number" }
       },
       { key: "url", label: "URL", type: "string" }
     ],
@@ -2162,18 +1854,18 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.IF,
     version: 1,
-    display: { label: "\u6761\u4EF6", iconClass: "icon-if", category: "Logic" },
+    display: { label: "Condition", iconClass: "icon-if", category: "Logic" },
     ports: { inputs: 1, outputs: "any" },
     schema: [
       {
         key: "condition",
-        label: "\u6761\u4EF6\u8868\u8FBE\u5F0F(JSON)",
+        label: "Expression (JSON)",
         type: "json",
-        help: '\u5982 {"expression":"vars.a>0"} \u7B49'
+        help: 'e.g. {"expression":"vars.a>0"}'
       },
       {
         key: "branches",
-        label: "\u5206\u652F",
+        label: "Branches",
         type: "array",
         item: {
           key: "b",
@@ -2181,30 +1873,30 @@ function registerBuiltinSpecs() {
           type: "object",
           fields: [
             { key: "id", label: "ID", type: "string" },
-            { key: "name", label: "\u540D\u79F0", type: "string" },
-            { key: "expr", label: "\u8868\u8FBE\u5F0F", type: "string" }
+            { key: "name", label: "Name", type: "string" },
+            { key: "expr", label: "Expression", type: "string" }
           ]
         }
       },
-      { key: "else", label: "\u542F\u7528 else", type: "boolean", default: true }
+      { key: "else", label: "Enable Else", type: "boolean", default: true }
     ],
     defaults: { else: true }
   });
   registerNodeSpec({
     type: STEP_TYPES.FOREACH,
     version: 1,
-    display: { label: "\u5FAA\u73AF", iconClass: "icon-foreach", category: "Logic" },
+    display: { label: "For Each", iconClass: "icon-foreach", category: "Logic" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "listVar", label: "\u5217\u8868\u53D8\u91CF", type: "string", required: true },
-      { key: "itemVar", label: "\u9879\u53D8\u91CF", type: "string", default: "item" },
-      { key: "subflowId", label: "\u5B50\u6D41\u7A0BID", type: "string", required: true },
+      { key: "listVar", label: "List Variable", type: "string", required: true },
+      { key: "itemVar", label: "Item Variable", type: "string", default: "item" },
+      { key: "subflowId", label: "Subflow ID", type: "string", required: true },
       {
         key: "concurrency",
-        label: "\u5E76\u53D1\u6570",
+        label: "Concurrency",
         type: "number",
         default: 1,
-        help: "\u5E76\u53D1\u6267\u884C\u5B50\u6D41\u7A0B\uFF08\u6D45\u62F7\u8D1D\u53D8\u91CF\uFF0C\u4E0D\u81EA\u52A8\u5408\u5E76\uFF09"
+        help: "Run subflows concurrently (shallow copy vars, no auto merge)"
       }
     ],
     defaults: { itemVar: "item" }
@@ -2212,24 +1904,24 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.WHILE,
     version: 1,
-    display: { label: "\u5FAA\u73AF", iconClass: "icon-while", category: "Logic" },
+    display: { label: "While Loop", iconClass: "icon-while", category: "Logic" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
-      { key: "condition", label: "\u6761\u4EF6(JSON)", type: "json" },
-      { key: "subflowId", label: "\u5B50\u6D41\u7A0BID", type: "string", required: true },
-      { key: "maxIterations", label: "\u6700\u5927\u6B21\u6570", type: "number", default: 100 }
+      { key: "condition", label: "Condition (JSON)", type: "json" },
+      { key: "subflowId", label: "Subflow ID", type: "string", required: true },
+      { key: "maxIterations", label: "Max Iterations", type: "number", default: 100 }
     ],
     defaults: { maxIterations: 100 }
   });
   registerNodeSpec({
     type: STEP_TYPES.DELAY,
     version: 1,
-    display: { label: "\u5EF6\u8FDF", iconClass: "icon-delay", category: "Actions" },
+    display: { label: "Delay", iconClass: "icon-delay", category: "Actions" },
     ports: { inputs: 1, outputs: [{ label: "default" }] },
     schema: [
       {
         key: "sleep",
-        label: "\u5EF6\u8FDF",
+        label: "Duration (ms)",
         type: "number",
         widget: "duration",
         required: true,
@@ -2241,50 +1933,50 @@ function registerBuiltinSpecs() {
   registerNodeSpec({
     type: STEP_TYPES.TRIGGER,
     version: 1,
-    display: { label: "\u89E6\u53D1\u5668", iconClass: "icon-trigger", category: "Flow" },
+    display: { label: "Trigger", iconClass: "icon-trigger", category: "Flow" },
     ports: { inputs: 0, outputs: [{ label: "default" }] },
     schema: [
-      { key: "enabled", label: "\u542F\u7528", type: "boolean", default: true },
-      { key: "description", label: "\u63CF\u8FF0", type: "string" },
+      { key: "enabled", label: "Enabled", type: "boolean", default: true },
+      { key: "description", label: "Description", type: "string" },
       {
         key: "modes",
-        label: "\u6A21\u5F0F",
+        label: "Trigger Mode",
         type: "object",
         fields: [
-          { key: "manual", label: "\u624B\u52A8", type: "boolean", default: true },
-          { key: "url", label: "URL \u89E6\u53D1", type: "boolean", default: false },
-          { key: "contextMenu", label: "\u53F3\u952E\u83DC\u5355", type: "boolean", default: false },
-          { key: "command", label: "\u5FEB\u6377\u952E", type: "boolean", default: false },
-          { key: "dom", label: "DOM \u4E8B\u4EF6", type: "boolean", default: false },
-          { key: "schedule", label: "\u5B9A\u65F6", type: "boolean", default: false }
+          { key: "manual", label: "Manual", type: "boolean", default: true },
+          { key: "url", label: "On URL", type: "boolean", default: false },
+          { key: "contextMenu", label: "Context Menu", type: "boolean", default: false },
+          { key: "command", label: "Shortcut", type: "boolean", default: false },
+          { key: "dom", label: "DOM Event", type: "boolean", default: false },
+          { key: "schedule", label: "Scheduled", type: "boolean", default: false }
         ]
       },
       {
         key: "url",
-        label: "URL \u89C4\u5219",
+        label: "URL Rules",
         type: "object",
         fields: [
           {
             key: "rules",
-            label: "\u89C4\u5219\u5217\u8868",
+            label: "Rule List",
             type: "array",
             item: {
               key: "rule",
-              label: "\u89C4\u5219",
+              label: "Rule",
               type: "object",
               fields: [
                 {
                   key: "kind",
-                  label: "\u7C7B\u578B",
+                  label: "Type",
                   type: "select",
                   options: [
                     { label: "URL", value: "url" },
-                    { label: "\u57DF\u540D", value: "domain" },
-                    { label: "\u8DEF\u5F84", value: "path" }
+                    { label: "Domain", value: "domain" },
+                    { label: "Path", value: "path" }
                   ],
                   default: "url"
                 },
-                { key: "value", label: "\u503C", type: "string" }
+                { key: "value", label: "Pattern", type: "string" }
               ]
             }
           }
@@ -2292,56 +1984,56 @@ function registerBuiltinSpecs() {
       },
       {
         key: "contextMenu",
-        label: "\u53F3\u952E\u83DC\u5355",
+        label: "Context Menu",
         type: "object",
         fields: [
-          { key: "title", label: "\u6807\u9898", type: "string", default: "\u8FD0\u884C\u5DE5\u4F5C\u6D41" },
-          { key: "enabled", label: "\u542F\u7528", type: "boolean", default: false }
+          { key: "title", label: "Item Title", type: "string", default: "Run Workflow" },
+          { key: "enabled", label: "Enabled", type: "boolean", default: false }
         ]
       },
       {
         key: "command",
-        label: "\u5FEB\u6377\u952E",
+        label: "Shortcut",
         type: "object",
         fields: [
-          { key: "commandKey", label: "\u5FEB\u6377\u952E", type: "string" },
-          { key: "enabled", label: "\u542F\u7528", type: "boolean", default: false }
+          { key: "commandKey", label: "Keys", type: "string" },
+          { key: "enabled", label: "Enabled", type: "boolean", default: false }
         ]
       },
       {
         key: "dom",
-        label: "DOM \u4E8B\u4EF6",
+        label: "DOM Event",
         type: "object",
         fields: [
-          { key: "selector", label: "\u9009\u62E9\u5668", type: "string" },
-          { key: "appear", label: "\u51FA\u73B0", type: "boolean", default: true },
-          { key: "once", label: "\u4E00\u6B21", type: "boolean", default: true },
-          { key: "debounceMs", label: "\u9632\u6296(ms)", type: "number", default: 800 },
-          { key: "enabled", label: "\u542F\u7528", type: "boolean", default: false }
+          { key: "selector", label: "Selector", type: "string" },
+          { key: "appear", label: "On Appear", type: "boolean", default: true },
+          { key: "once", label: "Run Once", type: "boolean", default: true },
+          { key: "debounceMs", label: "Debounce (ms)", type: "number", default: 800 },
+          { key: "enabled", label: "Enabled", type: "boolean", default: false }
         ]
       },
       {
         key: "schedules",
-        label: "\u5B9A\u65F6",
+        label: "Schedule",
         type: "array",
         item: {
           key: "sched",
-          label: "\u8BA1\u5212",
+          label: "Plan",
           type: "object",
           fields: [
             { key: "id", label: "ID", type: "string" },
             {
               key: "type",
-              label: "\u7C7B\u578B",
+              label: "Type",
               type: "select",
               options: [
-                { label: "\u4E00\u6B21", value: "once" },
-                { label: "\u95F4\u9694", value: "interval" },
-                { label: "\u6BCF\u65E5", value: "daily" }
+                { label: "Once", value: "once" },
+                { label: "Interval", value: "interval" },
+                { label: "Daily", value: "daily" }
               ]
             },
-            { key: "when", label: "\u65F6\u95F4(ISO/cron)", type: "string" },
-            { key: "enabled", label: "\u542F\u7528", type: "boolean", default: true }
+            { key: "when", label: "Time (ISO/cron)", type: "string" },
+            { key: "enabled", label: "Enabled", type: "boolean", default: true }
           ]
         }
       }
@@ -2377,18 +2069,11 @@ var DEFAULT_CODEX_CONFIG = {
   EDGE_LABELS,
   HOST_NAME,
   NativeMessageType,
-  RR_STEP_TYPES,
   STEP_TYPES,
   TOOL_NAMES,
   TOOL_SCHEMAS,
   getNodeSpec,
   listNodeSpecs,
-  mapNodeToStep,
-  mapStepToNodeConfig,
-  nodesToSteps,
   registerBuiltinSpecs,
-  registerNodeSpec,
-  stepsToDAG,
-  stepsToNodes,
-  topoOrder
+  registerNodeSpec
 });
