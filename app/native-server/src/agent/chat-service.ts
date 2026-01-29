@@ -42,6 +42,7 @@ export class AgentChatService {
    * Registry of currently running executions, keyed by requestId.
    */
   private readonly runningExecutions = new Map<string, RunningExecution>();
+  private nativeHost: any = null;
 
   constructor(options: AgentChatServiceOptions) {
     this.streamManager = options.streamManager;
@@ -60,6 +61,10 @@ export class AgentChatService {
       }
       this.defaultEngineName = firstEngine.name;
     }
+  }
+
+  public setNativeHost(host: any): void {
+    this.nativeHost = host;
   }
 
   async handleAct(sessionId: string, payload: AgentActRequest): Promise<{ requestId: string }> {
@@ -344,6 +349,8 @@ export class AgentChatService {
       useCcr: engineName === 'claude' ? projectUseCcr : undefined,
       // Pass Codex-specific configuration (CodexEngine only)
       codexConfig: engineName === 'codex' ? dbSession?.optionsConfig?.codexConfig : undefined,
+      // Inject native host for browser control
+      nativeMessagingHost: this.nativeHost,
     };
 
     // Create abort controller for cancellation support

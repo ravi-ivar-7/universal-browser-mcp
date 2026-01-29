@@ -20,7 +20,7 @@ export interface ModelDefinition {
   supportedReasoningEfforts?: readonly CodexReasoningEffort[];
 }
 
-export type AgentCliType = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm';
+export type AgentCliType = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini';
 
 // ============================================================
 // Claude Models
@@ -215,6 +215,27 @@ export const GLM_MODELS: ModelDefinition[] = [
 export const GLM_DEFAULT_MODEL = 'glm-4.6';
 
 // ============================================================
+// Gemini Models
+// ============================================================
+
+export const GEMINI_MODELS: ModelDefinition[] = [
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash (Preview)',
+    description: 'Next-gen fast model',
+    supportsImages: true,
+  },
+  {
+    id: 'gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash Lite (Preview)',
+    description: 'Lightweight next-gen model',
+    supportsImages: true,
+  },
+];
+
+export const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash';
+
+// ============================================================
 // Aggregated Definitions
 // ============================================================
 
@@ -224,6 +245,7 @@ export const CLI_MODEL_DEFINITIONS: Record<AgentCliType, ModelDefinition[]> = {
   cursor: CURSOR_MODELS,
   qwen: QWEN_MODELS,
   glm: GLM_MODELS,
+  gemini: GEMINI_MODELS,
 };
 
 export const CLI_DEFAULT_MODELS: Record<AgentCliType, string> = {
@@ -232,6 +254,7 @@ export const CLI_DEFAULT_MODELS: Record<AgentCliType, string> = {
   cursor: CURSOR_DEFAULT_MODEL,
   qwen: QWEN_DEFAULT_MODEL,
   glm: GLM_DEFAULT_MODEL,
+  gemini: GEMINI_DEFAULT_MODEL,
 };
 
 // ============================================================

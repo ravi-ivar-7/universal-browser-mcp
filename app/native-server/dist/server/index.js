@@ -26,6 +26,7 @@ const stream_manager_1 = require("../agent/stream-manager");
 const chat_service_1 = require("../agent/chat-service");
 const codex_1 = require("../agent/engines/codex");
 const claude_1 = require("../agent/engines/claude");
+const gemini_1 = require("../agent/engines/gemini");
 const db_1 = require("../agent/db");
 const routes_1 = require("./routes");
 // ============================================================
@@ -39,7 +40,7 @@ class Server {
         this.fastify = (0, fastify_1.default)({ logger: constant_1.SERVER_CONFIG.LOGGER_ENABLED });
         this.agentStreamManager = new stream_manager_1.AgentStreamManager();
         this.agentChatService = new chat_service_1.AgentChatService({
-            engines: [new codex_1.CodexEngine(), new claude_1.ClaudeEngine()],
+            engines: [new codex_1.CodexEngine(), new claude_1.ClaudeEngine(), new gemini_1.GeminiEngine()],
             streamManager: this.agentStreamManager,
         });
         this.setupPlugins();
@@ -272,6 +273,8 @@ class Server {
         else if (this.nativeHost !== nativeHost) {
             this.nativeHost = nativeHost;
         }
+        // Inject native host into agent chat service to avoid circular dependencies
+        this.agentChatService.setNativeHost(nativeHost);
         if (this.isRunning) {
             return;
         }

@@ -63,6 +63,11 @@ export interface EngineInitOptions {
    * Only applicable to CodexEngine; merged with DEFAULT_CODEX_CONFIG.
    */
   codexConfig?: Partial<CodexEngineConfig>;
+  /**
+   * Optional reference to the NativeMessagingHost instance for direct browser communication.
+   * This avoids circular dependency issues by injecting the host at runtime.
+   */
+  nativeMessagingHost?: any;
 }
 
 /**
@@ -95,7 +100,7 @@ export interface ClaudeManagementInfo {
  */
 export type ManagementInfoPersistCallback = (info: ClaudeManagementInfo) => Promise<void>;
 
-export type EngineName = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm';
+export type EngineName = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini';
 
 export interface EngineExecutionContext {
   /**

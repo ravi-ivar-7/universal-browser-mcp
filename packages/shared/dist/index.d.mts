@@ -395,7 +395,7 @@ interface AgentAttachment {
     mimeType: string;
     dataBase64: string;
 }
-type AgentCliPreference = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm';
+type AgentCliPreference = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini';
 interface AgentActRequest {
     instruction: string;
     cliPreference?: AgentCliPreference;

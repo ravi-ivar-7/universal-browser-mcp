@@ -20,7 +20,9 @@ export declare class AgentChatService {
      * Registry of currently running executions, keyed by requestId.
      */
     private readonly runningExecutions;
+    private nativeHost;
     constructor(options: AgentChatServiceOptions);
+    setNativeHost(host: any): void;
     handleAct(sessionId: string, payload: AgentActRequest): Promise<{
         requestId: string;
     }>;

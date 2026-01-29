@@ -62,6 +62,11 @@ export interface EngineInitOptions {
      * Only applicable to CodexEngine; merged with DEFAULT_CODEX_CONFIG.
      */
     codexConfig?: Partial<CodexEngineConfig>;
+    /**
+     * Optional reference to the NativeMessagingHost instance for direct browser communication.
+     * This avoids circular dependency issues by injecting the host at runtime.
+     */
+    nativeMessagingHost?: any;
 }
 /**
  * Callback to persist Claude session ID after initialization.
@@ -96,7 +101,7 @@ export interface ClaudeManagementInfo {
  * Callback to persist management information after SDK initialization.
  */
 export type ManagementInfoPersistCallback = (info: ClaudeManagementInfo) => Promise<void>;
-export type EngineName = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm';
+export type EngineName = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini';
 export interface EngineExecutionContext {
     /**
      * Emit a realtime event to all connected clients for the current session.

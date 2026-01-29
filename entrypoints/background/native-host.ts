@@ -343,6 +343,7 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT): bool
     nativePort = chrome.runtime.connectNative(HOST_NAME);
 
     nativePort.onMessage.addListener(async (message) => {
+      console.log(`${LOG_PREFIX} Received message:`, message);
       if (message.type === NativeMessageType.PROCESS_DATA && message.requestId) {
         const requestId = message.requestId;
         const requestPayload = message.payload;

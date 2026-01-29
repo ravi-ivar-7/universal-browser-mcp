@@ -491,6 +491,7 @@ function getEngineColor(engineName: string): string {
     cursor: '#8b5cf6',
     qwen: '#6366f1',
     glm: '#ef4444',
+    gemini: '#4285f4',
   };
   return colors[engineName] || '#6b7280';
 }

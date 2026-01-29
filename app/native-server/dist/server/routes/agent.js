@@ -11,7 +11,7 @@ const directory_picker_1 = require("../../agent/directory-picker");
 const attachment_service_1 = require("../../agent/attachment-service");
 const open_project_1 = require("../../agent/open-project");
 // Valid engine names for validation
-const VALID_ENGINE_NAMES = ['claude', 'codex', 'cursor', 'qwen', 'glm'];
+const VALID_ENGINE_NAMES = ['claude', 'codex', 'cursor', 'qwen', 'glm', 'gemini'];
 function isValidEngineName(name) {
     return VALID_ENGINE_NAMES.includes(name);
 }

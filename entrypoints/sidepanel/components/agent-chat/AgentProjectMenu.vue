@@ -308,7 +308,12 @@ const showCcrOption = computed(() => {
 // Show Chrome MCP option when Claude, Codex, or Auto (empty) CLI is selected
 // Auto typically defaults to Claude, and users should be able to manage this project-level setting
 const showChromeMcpOption = computed(() => {
-  return !props.selectedCli || props.selectedCli === 'claude' || props.selectedCli === 'codex';
+  return (
+    !props.selectedCli ||
+    props.selectedCli === 'claude' ||
+    props.selectedCli === 'codex' ||
+    props.selectedCli === 'gemini'
+  );
 });
 
 // Handle CLI change - auto-select default model for the CLI

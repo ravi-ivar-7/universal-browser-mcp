@@ -447,7 +447,7 @@ const isCodexEngine = computed(() => props.engineName === 'codex');
 // Image upload is supported for Claude and Codex engines
 const supportsImages = computed(() => {
   const engine = props.engineName;
-  return engine === 'claude' || engine === 'codex';
+  return engine === 'claude' || engine === 'codex' || engine === 'gemini';
 });
 
 // Model selector auto-width
