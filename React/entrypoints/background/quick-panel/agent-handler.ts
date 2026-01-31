@@ -509,13 +509,13 @@ async function startRequest(request: ActiveRequest): Promise<void> {
         ),
       );
       // Open sidepanel without deep-linking to invalid session
-      openAgentChatSidepanel(request.tabId, request.windowId).catch(() => {});
+      openAgentChatSidepanel(request.tabId, request.windowId).catch(() => { });
       cleanupRequest(request.requestId, 'session_invalid');
       return;
     }
 
     // Best-effort: open sidepanel deep-linked to current session
-    openAgentChatSidepanel(request.tabId, request.windowId, request.sessionId).catch(() => {});
+    openAgentChatSidepanel(request.tabId, request.windowId, request.sessionId).catch(() => { });
 
     // Start SSE subscription BEFORE sending act request to avoid missing early events
     const sse = createSseSubscription(request);
@@ -598,16 +598,28 @@ async function handleSendToAI(
   ]);
 
   const port = normalizePort(stored?.[STORAGE_KEYS.NATIVE_SERVER_PORT]) ?? NATIVE_HOST.DEFAULT_PORT;
-  const sessionId = normalizeString(stored?.[STORAGE_KEY_SELECTED_SESSION]).trim();
+
+  // 1. Try payload session (explicit override)
+  // 2. Try stored session (sticky)
+  // 3. Auto-create (zero friction)
+  let sessionId = normalizeString(message?.payload?.sessionId).trim();
 
   if (!sessionId) {
-    // No session selected: open sidepanel for user to select/create one
-    openAgentChatSidepanel(tabId, windowId).catch(() => {});
-    return {
-      success: false,
-      error:
-        'No Agent session selected. Please open AgentChat, select or create a session, then try again.',
-    };
+    sessionId = normalizeString(stored?.[STORAGE_KEY_SELECTED_SESSION]).trim();
+  }
+
+  if (!sessionId) {
+    // Auto-create session if none exists
+    try {
+      sessionId = await createSession(port, message?.payload?.projectId);
+      // Persist as new sticky session
+      await chrome.storage.local.set({ [STORAGE_KEY_SELECTED_SESSION]: sessionId });
+    } catch (e) {
+      return {
+        success: false,
+        error: 'Failed to auto-create session: ' + String(e),
+      };
+    }
   }
 
   // Create request state
@@ -719,7 +731,7 @@ async function handleCancelAI(
     : chrome.tabs.sendMessage(tabId, eventMessage);
 
   sendPromise
-    .catch(() => {})
+    .catch(() => { })
     .finally(() => {
       cleanupRequest(requestId, 'cancelled_by_user');
     });
@@ -763,6 +775,28 @@ export function initQuickPanelAgentHandler(): void {
       return true; // Async response
     }
 
+    // Handle Session/Project List & Context Update
+    if (message?.type === BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_LIST_PROJECTS) {
+      handleListProjects().then(sendResponse).catch(err => sendResponse({ success: false, error: String(err) }));
+      return true;
+    }
+    if (message?.type === BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_LIST_SESSIONS) {
+      handleListSessions(message.payload?.projectId).then(sendResponse).catch(err => sendResponse({ success: false, error: String(err) }));
+      return true;
+    }
+    if (message?.type === BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_UPDATE_CONTEXT) {
+      handleUpdateContext(message.payload).then(sendResponse).catch(err => sendResponse({ success: false, error: String(err) }));
+      return true;
+    }
+    if (message?.type === BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_GET_CONTEXT) {
+      handleGetContext().then(sendResponse).catch(err => sendResponse({ success: false, error: String(err) }));
+      return true;
+    }
+    if (message?.type === BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_GET_HISTORY) {
+      handleGetHistory(message.payload?.sessionId).then(sendResponse).catch(err => sendResponse({ success: false, error: String(err) }));
+      return true;
+    }
+
     return false;
   });
 
@@ -776,4 +810,106 @@ export function initQuickPanelAgentHandler(): void {
   });
 
   console.debug(`${LOG_PREFIX} Initialized`);
+}
+
+async function getNativePort(): Promise<number> {
+  const stored = await chrome.storage.local.get([STORAGE_KEYS.NATIVE_SERVER_PORT]);
+  return normalizePort(stored?.[STORAGE_KEYS.NATIVE_SERVER_PORT]) ?? NATIVE_HOST.DEFAULT_PORT;
+}
+
+async function handleListProjects() {
+  try {
+    const port = await getNativePort();
+    const res = await fetch(`http://127.0.0.1:${port}/agent/projects`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return { success: true, projects: data.projects || [] };
+  } catch (e) {
+    return { success: false, error: String(e), projects: [] }; // Fallback empty
+  }
+}
+
+async function handleListSessions(projectId?: string) {
+  try {
+    const port = await getNativePort();
+    let url = `http://127.0.0.1:${port}/agent/sessions`;
+
+    // If projectId is specified, use the project-specific endpoint
+    if (projectId) {
+      url = `http://127.0.0.1:${port}/agent/projects/${projectId}/sessions`;
+    }
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return { success: true, sessions: data.sessions || [] };
+  } catch (e) {
+    return { success: false, error: String(e), sessions: [] };
+  }
+}
+
+async function handleUpdateContext(payload: { sessionId?: string, projectId?: string }) {
+  if (payload.sessionId) {
+    await chrome.storage.local.set({ [STORAGE_KEY_SELECTED_SESSION]: payload.sessionId });
+  }
+  // We could store projectId too if needed, but session implies project usually
+  return { success: true };
+}
+
+async function handleGetContext() {
+  const stored = await chrome.storage.local.get([STORAGE_KEY_SELECTED_SESSION]);
+  return {
+    success: true,
+    sessionId: stored[STORAGE_KEY_SELECTED_SESSION] || null
+  };
+}
+
+async function handleGetHistory(sessionId: string) {
+  if (!sessionId) return { success: false, error: 'sessionId is required' };
+  try {
+    const port = await getNativePort();
+    const url = `http://127.0.0.1:${port}/agent/sessions/${encodeURIComponent(sessionId)}/history`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return { success: true, messages: data.messages || [] };
+  } catch (e) {
+    return { success: false, error: String(e), messages: [] };
+  }
+}
+
+/**
+ * Helper to autocreate a session
+ */
+async function createSession(port: number, projectId?: string): Promise<string> {
+  let pid = projectId;
+
+  // If no project ID, try to get the first available project
+  if (!pid) {
+    const projectsRes = await handleListProjects();
+    if (projectsRes.success && projectsRes.projects.length > 0) {
+      pid = projectsRes.projects[0].id;
+    }
+  }
+
+  if (!pid) {
+    throw new Error('No project available to create a session in. Please create a project in AgentChat first.');
+  }
+
+  const res = await fetch(`http://127.0.0.1:${port}/agent/projects/${pid}/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      engineName: 'gemini', // Default engine
+    })
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to create session: ${errorText}`);
+  }
+
+  const data = await res.json();
+  // The response is { session: { id: ... } }
+  return data.session.id;
 }

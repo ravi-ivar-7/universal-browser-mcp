@@ -261,17 +261,17 @@ async function addPreviewsToSessions(rows: SessionRow[]): Promise<AgentSession[]
     rows.map(async (row) => {
       const session = rowToSession(row);
 
-      // Query first user message for this session (include metadata for special rendering)
-      const firstUserMessages = await db
+      // Query last user message for this session (include metadata for special rendering)
+      const lastUserMessages = await db
         .select({ content: messages.content, metadata: messages.metadata })
         .from(messages)
         .where(and(eq(messages.sessionId, row.id), eq(messages.role, 'user')))
-        .orderBy(asc(messages.createdAt))
+        .orderBy(desc(messages.createdAt))
         .limit(1);
 
-      if (firstUserMessages.length > 0 && firstUserMessages[0].content) {
-        const content = firstUserMessages[0].content;
-        const metadataJson = firstUserMessages[0].metadata;
+      if (lastUserMessages.length > 0 && lastUserMessages[0].content) {
+        const content = lastUserMessages[0].content;
+        const metadataJson = lastUserMessages[0].metadata;
 
         session.preview = truncatePreview(content);
 
@@ -290,10 +290,10 @@ async function addPreviewsToSessions(rows: SessionRow[]): Promise<AgentSession[]
             // Validate clientMeta structure
             const clientMeta =
               rawClientMeta &&
-              typeof rawClientMeta === 'object' &&
-              'kind' in rawClientMeta &&
-              (rawClientMeta.kind === 'web_editor_apply_batch' ||
-                rawClientMeta.kind === 'web_editor_apply_single')
+                typeof rawClientMeta === 'object' &&
+                'kind' in rawClientMeta &&
+                (rawClientMeta.kind === 'web_editor_apply_batch' ||
+                  rawClientMeta.kind === 'web_editor_apply_single')
                 ? (rawClientMeta as AgentSessionPreviewMeta['clientMeta'])
                 : undefined;
 

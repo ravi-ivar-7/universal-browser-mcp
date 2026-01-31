@@ -62,7 +62,16 @@ export interface QuickPanelAiChatPanelState {
   lastStatus: AgentStatusEvent['status'] | null;
   lastUsage: AgentUsageStats | null;
   errorMessage: string | null;
+  // Context Management
+  projects: any[];
+  sessions: any[];
+  selectedProjectId: string | null;
+  selectedSessionId: string | null;
+  isContextLoading: boolean;
 }
+
+import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
+import { NATIVE_HOST, STORAGE_KEYS } from '@/common/constants';
 
 export interface QuickPanelAiChatPanelManager {
   getState: () => QuickPanelAiChatPanelState;
@@ -122,6 +131,15 @@ function safeFocus(element: HTMLElement): void {
 
 function isTerminalStatus(status: AgentStatusEvent['status']): boolean {
   return status === 'completed' || status === 'error' || status === 'cancelled';
+}
+
+function normalizePort(value: unknown): number | null {
+  const num =
+    typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
+  if (!Number.isFinite(num)) return null;
+  const port = Math.floor(num);
+  if (port <= 0 || port > 65535) return null;
+  return port;
 }
 
 /**
@@ -208,6 +226,9 @@ interface PanelDOMElements {
   textarea: HTMLTextAreaElement;
   /** Unified action button: send/stop */
   actionBtn: HTMLButtonElement;
+  /** Context selectors */
+  projectSelect: HTMLSelectElement;
+  sessionSelect: HTMLSelectElement;
 }
 
 function buildPanelDOM(options: QuickPanelAiChatPanelOptions): PanelDOMElements {
@@ -239,17 +260,23 @@ function buildPanelDOM(options: QuickPanelAiChatPanelOptions): PanelDOMElements 
   brand.textContent = '\u2726'; // Star symbol
 
   const titleWrap = document.createElement('div');
-  titleWrap.className = 'qp-title';
+  titleWrap.className = 'qp-context-controls';
 
-  const titleNameEl = document.createElement('div');
-  titleNameEl.className = 'qp-title-name';
-  titleNameEl.textContent = title;
+  const projectSelect = document.createElement('select');
+  projectSelect.className = 'qp-select';
+  // Placeholder option
+  projectSelect.innerHTML = '<option value="" disabled selected>Select Project...</option>';
 
+  const sessionSelect = document.createElement('select');
+  sessionSelect.className = 'qp-select';
+  sessionSelect.innerHTML = '<option value="" disabled selected>New Session</option>';
+
+  // Status/Subtitle placeholder (hidden for now or repurposed)
   const titleSubEl = document.createElement('div');
   titleSubEl.className = 'qp-title-sub';
-  titleSubEl.textContent = subtitle;
+  titleSubEl.hidden = true;
 
-  titleWrap.append(titleNameEl, titleSubEl);
+  titleWrap.append(projectSelect, sessionSelect, titleSubEl);
   headerLeft.append(brand, titleWrap);
 
   const headerRight = document.createElement('div');
@@ -367,6 +394,8 @@ function buildPanelDOM(options: QuickPanelAiChatPanelOptions): PanelDOMElements 
     banner,
     textarea,
     actionBtn,
+    projectSelect,
+    sessionSelect,
   };
 }
 
@@ -425,6 +454,11 @@ export function mountQuickPanelAiChatPanel(
     lastStatus: null,
     lastUsage: null,
     errorMessage: null,
+    projects: [],
+    sessions: [],
+    selectedProjectId: null,
+    selectedSessionId: null,
+    isContextLoading: false,
   };
 
   // --------------------------------------------------------
@@ -618,6 +652,221 @@ export function mountQuickPanelAiChatPanel(
   }
 
   // --------------------------------------------------------
+  // Context Data Fetching & Rendering
+  // --------------------------------------------------------
+
+  function renderContextControls() {
+    if (disposed) return;
+
+    // Update Project Select
+    const currentProj = state.selectedProjectId;
+    const projOpts = state.projects.map(p => {
+      const selected = p.id === currentProj ? 'selected' : '';
+      return `<option value="${p.id}" ${selected}>${escapeHtml(p.name)}</option>`;
+    }).join('');
+    dom.projectSelect.innerHTML = `<option value="" disabled ${!currentProj ? 'selected' : ''}>Select Project...</option>${projOpts}`;
+
+    // Update Session Select
+    const currentSess = state.selectedSessionId;
+    const sessOpts = state.sessions.map(s => {
+      const selected = s.id === currentSess ? 'selected' : '';
+
+      let title = s.preview || s.name;
+      if (!title && s.previewMeta && s.previewMeta.displayText) {
+        title = s.previewMeta.displayText;
+      }
+
+      if (!title) {
+        // Fallback to formatted date if available, else ID
+        if (s.createdAt) {
+          try {
+            const date = new Date(s.createdAt);
+            title = date.toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit'
+            });
+          } catch {
+            // ignore invalid date
+          }
+        }
+        if (!title) {
+          title = (s.id || 'Unknown').slice(0, 8);
+        }
+      }
+
+      return `<option value="${s.id}" ${selected}>${escapeHtml(title)}</option>`;
+    }).join('');
+    // "New Session" is the default empty value
+    dom.sessionSelect.innerHTML = `<option value="" ${!currentSess ? 'selected' : ''}>New Session</option>${sessOpts}`;
+  }
+
+  function escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  async function loadProjects() {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_LIST_PROJECTS });
+      if (disposed) return;
+      if (res && res.success) {
+        setState({ projects: res.projects });
+        renderContextControls();
+      }
+    } catch (e) {
+      console.warn('Failed to load projects', e);
+    }
+  }
+
+  async function loadSessions(projectId?: string) {
+    setState({ isContextLoading: true });
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_LIST_SESSIONS,
+        payload: { projectId }
+      });
+      if (disposed) return;
+
+      if (res && res.success) {
+        setState({ sessions: res.sessions });
+
+        // If we switched projects and have no session selected yet,
+        // try to pick the most recent one for this project.
+        if (!state.selectedSessionId && res.sessions && res.sessions.length > 0) {
+          const firstId = res.sessions[0].id;
+          setState({ selectedSessionId: firstId });
+          void loadHistory(firstId);
+
+          // Sync context to background
+          chrome.runtime.sendMessage({
+            type: BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_UPDATE_CONTEXT,
+            payload: { sessionId: firstId, projectId: projectId || undefined }
+          }).catch(() => { });
+        } else if (state.selectedSessionId) {
+          // History should match selected session
+          void loadHistory(state.selectedSessionId);
+        } else {
+          // No session selected (New Session mode)
+          renderer.clear();
+          renderEmptyState();
+        }
+
+        renderContextControls();
+      }
+    } catch (e) {
+      console.warn('Failed to load sessions', e);
+    } finally {
+      if (!disposed) setState({ isContextLoading: false });
+    }
+  }
+
+  // Event Listeners for Context
+  dom.projectSelect.addEventListener('change', (e) => {
+    const pid = (e.target as HTMLSelectElement).value;
+    setState({ selectedProjectId: pid, selectedSessionId: null });
+
+    // Clear history immediately when switching projects
+    renderer.clear();
+    renderEmptyState();
+
+    loadSessions(pid); // Reload sessions for this project
+  });
+
+  dom.sessionSelect.addEventListener('change', (e) => {
+    const sid = (e.target as HTMLSelectElement).value;
+    setState({ selectedSessionId: sid || null });
+
+    // Update background context so it sticks
+    chrome.runtime.sendMessage({
+      type: BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_UPDATE_CONTEXT,
+      payload: { sessionId: sid || undefined, projectId: state.selectedProjectId || undefined }
+    }).catch(() => { });
+
+    if (sid) {
+      void loadHistory(sid);
+    } else {
+      renderer.clear();
+      renderEmptyState();
+    }
+  });
+
+  // Initial Load
+  async function initContext() {
+    try {
+      // 1. Get current sticky session and server port from background/storage
+      const [context, storedPort] = await Promise.all([
+        chrome.runtime.sendMessage({ type: BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_GET_CONTEXT }),
+        chrome.storage.local.get([STORAGE_KEYS.NATIVE_SERVER_PORT])
+      ]);
+
+      if (disposed) return;
+
+      const port = normalizePort(storedPort?.[STORAGE_KEYS.NATIVE_SERVER_PORT]) ?? NATIVE_HOST.DEFAULT_PORT;
+      renderer.updateServerPort(port);
+
+      if (context && context.success && context.sessionId) {
+        setState({ selectedSessionId: context.sessionId });
+      }
+
+      // 2. Load all projects
+      await loadProjects();
+
+      // 3. Load sessions - this will handle history loading if a session is selected or auto-picked
+      await loadSessions(state.selectedProjectId || undefined);
+
+      // If we have a selected session but no project, try to match them
+      if (state.selectedSessionId && !state.selectedProjectId) {
+        const activeSess = state.sessions.find((s) => s.id === state.selectedSessionId);
+        if (activeSess && activeSess.projectId) {
+          setState({ selectedProjectId: activeSess.projectId });
+          renderContextControls();
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to initialize Quick Panel context', e);
+    }
+  }
+
+  initContext();
+
+  async function loadHistory(sessionId: string) {
+    if (disposed) return;
+    setState({ isContextLoading: true });
+    try {
+      const res = await agentBridge.getHistory(sessionId);
+      if (disposed) return;
+      if (res.success) {
+        // Convert to AgentMessage format if needed (bridge returns raw message list)
+        const messages = res.messages.map((m: any) => ({
+          id: m.id,
+          sessionId: m.sessionId,
+          role: m.role,
+          content: m.content,
+          messageType: m.messageType,
+          cliSource: m.cliSource,
+          requestId: m.requestId,
+          createdAt: m.createdAt,
+          metadata: m.metadata,
+        }));
+        renderer.setMessages(messages);
+        renderEmptyState();
+
+        // Ensure we scroll to bottom after layout has likely finished
+        setTimeout(() => {
+          renderer.scrollToBottom();
+        }, 100);
+      }
+    } catch (e) {
+      console.warn('Failed to load history', e);
+    } finally {
+      if (!disposed) setState({ isContextLoading: false });
+    }
+  }
+
+  // --------------------------------------------------------
   // Request Lifecycle
   // --------------------------------------------------------
 
@@ -646,6 +895,8 @@ export function mountQuickPanelAiChatPanel(
     const payload: QuickPanelSendToAIPayload = {
       instruction,
       context: context ?? undefined,
+      sessionId: state.selectedSessionId || undefined,
+      projectId: state.selectedProjectId || undefined,
     };
 
     // Send to agent
@@ -669,13 +920,19 @@ export function mountQuickPanelAiChatPanel(
     renderer.upsert(buildLocalUserMessage(result.sessionId, result.requestId, instruction));
     renderer.scrollToBottom();
 
-    setState({
+    const newState: Partial<QuickPanelAiChatPanelState> = {
       sending: false,
       streaming: true,
       currentRequestId: result.requestId,
       sessionId: result.sessionId,
       lastStatus: 'starting',
-    });
+    };
+
+    if (!state.selectedSessionId && result.sessionId) {
+      newState.selectedSessionId = result.sessionId;
+    }
+
+    setState(newState);
 
     // Subscribe to events
     cleanupActiveSubscription();
@@ -725,6 +982,9 @@ export function mountQuickPanelAiChatPanel(
       const usageText = formatUsageStats(state.lastUsage);
       const bannerMsg = usageText ? `Completed \u2022 ${usageText}` : 'Completed';
       showBanner('success', bannerMsg, BANNER_AUTO_HIDE_MS);
+
+      // Refresh sessions to update previews/last active
+      void loadSessions(state.selectedProjectId || undefined);
       return;
     }
 

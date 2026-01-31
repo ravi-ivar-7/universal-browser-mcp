@@ -123,16 +123,16 @@ async function addPreviewsToSessions(rows) {
     const db = (0, db_1.getDb)();
     return Promise.all(rows.map(async (row) => {
         const session = rowToSession(row);
-        // Query first user message for this session (include metadata for special rendering)
-        const firstUserMessages = await db
+        // Query last user message for this session (include metadata for special rendering)
+        const lastUserMessages = await db
             .select({ content: db_1.messages.content, metadata: db_1.messages.metadata })
             .from(db_1.messages)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(db_1.messages.sessionId, row.id), (0, drizzle_orm_1.eq)(db_1.messages.role, 'user')))
-            .orderBy((0, drizzle_orm_1.asc)(db_1.messages.createdAt))
+            .orderBy((0, drizzle_orm_1.desc)(db_1.messages.createdAt))
             .limit(1);
-        if (firstUserMessages.length > 0 && firstUserMessages[0].content) {
-            const content = firstUserMessages[0].content;
-            const metadataJson = firstUserMessages[0].metadata;
+        if (lastUserMessages.length > 0 && lastUserMessages[0].content) {
+            const content = lastUserMessages[0].content;
+            const metadataJson = lastUserMessages[0].metadata;
             session.preview = truncatePreview(content);
             // Parse metadata to extract clientMeta/displayText for special rendering
             if (metadataJson) {

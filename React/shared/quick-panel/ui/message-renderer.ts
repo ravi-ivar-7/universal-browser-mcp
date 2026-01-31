@@ -26,6 +26,8 @@ export interface QuickPanelMessageRendererOptions {
   autoScroll?: boolean;
   /** Pixel threshold for "near bottom" detection. Default: 96 */
   autoScrollThresholdPx?: number;
+  /** Server port for resolving attachment URLs */
+  serverPort?: number | null;
 }
 
 export interface QuickPanelMessageRenderer {
@@ -41,6 +43,8 @@ export interface QuickPanelMessageRenderer {
   getMessageCount: () => number;
   /** Force scroll to bottom */
   scrollToBottom: () => void;
+  /** Update server port for attachment URLs */
+  updateServerPort: (port: number | null) => void;
   /** Clean up resources */
   dispose: () => void;
 }
@@ -62,6 +66,8 @@ interface MessageEntry {
   requestIdEl: HTMLElement;
   /** Markdown renderer for assistant messages */
   markdownRenderer: MarkdownRendererInstance | null;
+  /** Container for attachments */
+  attachmentsEl: HTMLDivElement;
 }
 
 // ============================================================
@@ -178,6 +184,15 @@ function createMessageEntry(messageId: string, message: AgentMessage): MessageEn
   const textEl = document.createElement('div');
   textEl.className = 'qp-msg-text';
 
+  const attachmentsEl = document.createElement('div');
+  attachmentsEl.className = 'qp-msg-attachments';
+  Object.assign(attachmentsEl.style, {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    marginTop: '8px',
+  });
+
   const metaEl = document.createElement('div');
   metaEl.className = 'qp-msg-meta';
 
@@ -185,7 +200,7 @@ function createMessageEntry(messageId: string, message: AgentMessage): MessageEn
   const metaRight = createMetaRightElement();
 
   metaEl.append(metaLeft.container, metaRight.container);
-  bubble.append(textEl, metaEl);
+  bubble.append(textEl, attachmentsEl, metaEl);
   wrapper.append(bubble);
 
   // Create markdown renderer for assistant messages
@@ -205,6 +220,7 @@ function createMessageEntry(messageId: string, message: AgentMessage): MessageEn
     metaRightEl: metaRight.container,
     requestIdEl: metaRight.requestId,
     markdownRenderer,
+    attachmentsEl,
   };
 }
 
@@ -212,7 +228,12 @@ function createMessageEntry(messageId: string, message: AgentMessage): MessageEn
 // Entry Update Logic
 // ============================================================
 
-function updateMessageEntry(entry: MessageEntry, messageId: string, message: AgentMessage): void {
+function updateMessageEntry(
+  entry: MessageEntry,
+  messageId: string,
+  message: AgentMessage,
+  port?: number | null,
+): void {
   // Update wrapper classes and data attributes
   const wrapperClass = getWrapperClassName(message.role);
   if (entry.wrapper.className !== wrapperClass) {
@@ -240,6 +261,45 @@ function updateMessageEntry(entry: MessageEntry, messageId: string, message: Age
     if (entry.textEl.textContent !== textContent) {
       entry.textEl.textContent = textContent;
     }
+  }
+
+  // Update attachments
+  const attachments = (message.metadata?.attachments as any[]) || [];
+  if (attachments.length > 0) {
+    entry.attachmentsEl.innerHTML = '';
+    entry.attachmentsEl.hidden = false;
+
+    for (const a of attachments) {
+      if (a.type === 'image' || a.mimeType?.startsWith('image/')) {
+        let src: string | null = null;
+        if (a.previewUrl) {
+          src = a.previewUrl;
+        } else if (a.dataBase64 && a.mimeType) {
+          src = `data:${a.mimeType};base64,${a.dataBase64}`;
+        } else if (a.urlPath && port) {
+          const path = a.urlPath.startsWith('/') ? a.urlPath : `/${a.urlPath}`;
+          src = `http://127.0.0.1:${port}${path}`;
+        }
+
+        if (src) {
+          const img = document.createElement('img');
+          img.src = src;
+          img.alt = a.originalName || 'Attachment';
+          Object.assign(img.style, {
+            width: '64px',
+            height: '64px',
+            objectFit: 'cover',
+            borderRadius: '8px',
+            border: '1px solid var(--ac-border)',
+            backgroundColor: 'var(--ac-surface-muted)',
+          });
+          entry.attachmentsEl.append(img);
+        }
+      }
+    }
+  } else {
+    entry.attachmentsEl.hidden = true;
+    entry.attachmentsEl.innerHTML = '';
   }
 
   // Update time display
@@ -292,6 +352,9 @@ export function createQuickPanelMessageRenderer(
   const scrollContainer = options.scrollContainer ?? null;
   const autoScroll = options.autoScroll ?? true;
   const thresholdPx = options.autoScrollThresholdPx ?? DEFAULT_AUTO_SCROLL_THRESHOLD_PX;
+  let serverPort = options.serverPort ?? null;
+
+  /** Map of messageId -> DOM entry */
 
   /** Map of messageId -> DOM entry */
   const entries = new Map<string, MessageEntry>();
@@ -340,7 +403,7 @@ export function createQuickPanelMessageRenderer(
       container.append(entry.wrapper);
     }
 
-    updateMessageEntry(entry, messageId, message);
+    updateMessageEntry(entry, messageId, message, serverPort);
 
     if (shouldAutoScroll) {
       scrollToBottom();
@@ -406,16 +469,22 @@ export function createQuickPanelMessageRenderer(
 
       const entry = createMessageEntry(id, msg);
       entries.set(id, entry);
-      updateMessageEntry(entry, id, msg);
+      updateMessageEntry(entry, id, msg, serverPort);
       container.append(entry.wrapper);
     }
 
     // Scroll to bottom after batch render
-    scrollToBottom();
+    setTimeout(() => {
+      scrollToBottom();
+    }, 50);
   }
 
   function getMessageCount(): number {
     return entries.size;
+  }
+
+  function updateServerPort(port: number | null): void {
+    serverPort = port;
   }
 
   function dispose(): void {
@@ -444,6 +513,7 @@ export function createQuickPanelMessageRenderer(
     setMessages,
     getMessageCount,
     scrollToBottom,
+    updateServerPort,
     dispose,
   };
 }

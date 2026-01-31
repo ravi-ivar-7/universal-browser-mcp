@@ -147,13 +147,13 @@ export class QuickPanelAgentBridge {
   onRequestEvent(requestId: string, listener: RequestEventListener): () => void {
     if (this.disposed) {
       console.warn(`${LOG_PREFIX} Cannot subscribe - bridge is disposed`);
-      return () => {};
+      return () => { };
     }
 
     const id = requestId.trim();
     if (!id) {
       console.warn(`${LOG_PREFIX} Invalid requestId`);
-      return () => {};
+      return () => { };
     }
 
     // Add listener to set
@@ -213,6 +213,30 @@ export class QuickPanelAgentBridge {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, error: msg || 'Failed to send message' };
+    }
+  }
+
+  /**
+   * Fetch chat history for a session.
+   *
+   * @param sessionId - The session ID to fetch history for
+   * @returns Promise resolving to the list of messages or failure
+   */
+  async getHistory(sessionId: string): Promise<{ success: true; messages: any[] } | { success: false; error: string }> {
+    if (this.disposed) {
+      return { success: false, error: 'Bridge is disposed' };
+    }
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_GET_HISTORY,
+        payload: { sessionId },
+      });
+
+      return response as { success: true; messages: any[] } | { success: false; error: string };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, error: msg || 'Failed to fetch history' };
     }
   }
 

@@ -48,6 +48,12 @@ export const BACKGROUND_MESSAGE_TYPES = {
   QUICK_PANEL_TABS_QUERY: 'quick_panel_tabs_query',
   QUICK_PANEL_TAB_ACTIVATE: 'quick_panel_tab_activate',
   QUICK_PANEL_TAB_CLOSE: 'quick_panel_tab_close',
+  // Quick Panel session/project management
+  QUICK_PANEL_UPDATE_CONTEXT: 'quick_panel_update_context',
+  QUICK_PANEL_GET_CONTEXT: 'quick_panel_get_context',
+  QUICK_PANEL_LIST_PROJECTS: 'quick_panel_list_projects',
+  QUICK_PANEL_LIST_SESSIONS: 'quick_panel_list_sessions',
+  QUICK_PANEL_GET_HISTORY: 'quick_panel_get_history',
 } as const;
 
 // Offscreen message types
@@ -199,6 +205,10 @@ export interface QuickPanelSendToAIPayload {
   instruction: string;
   /** Optional contextual information from the page */
   context?: QuickPanelAIContext;
+  /** Explicit session override */
+  sessionId?: string;
+  /** Optional project binding for auto-created sessions */
+  projectId?: string;
 }
 
 /**
@@ -214,6 +224,34 @@ export type QuickPanelSendToAIResponse =
 export interface QuickPanelSendToAIMessage {
   type: typeof BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_SEND_TO_AI;
   payload: QuickPanelSendToAIPayload;
+}
+
+/**
+ * Payload for updating Quick Panel session/project context.
+ */
+export interface QuickPanelUpdateContextMessage {
+  type: typeof BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_UPDATE_CONTEXT;
+  payload: {
+    sessionId?: string;
+    projectId?: string;
+  };
+}
+
+/**
+ * Payload for listing projects.
+ */
+export interface QuickPanelListProjectsMessage {
+  type: typeof BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_LIST_PROJECTS;
+}
+
+/**
+ * Payload for listing sessions.
+ */
+export interface QuickPanelListSessionsMessage {
+  type: typeof BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_LIST_SESSIONS;
+  payload: {
+    projectId?: string;
+  };
 }
 
 /**

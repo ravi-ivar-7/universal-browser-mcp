@@ -1007,4 +1007,57 @@ export const QUICK_PANEL_STYLES = /* css */ `
   .qp-markdown-content em {
     font-style: italic;
   }
+  /* Context Selects */
+  .qp-context-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .qp-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: var(--ac-surface-muted);
+    border: var(--ac-border-width) solid var(--ac-border);
+    border-radius: var(--ac-radius-button);
+    padding: 6px 24px 6px 10px;
+    font-size: 11px;
+    color: var(--ac-text);
+    font-family: inherit;
+    cursor: pointer;
+    min-width: 100px;
+    max-width: 160px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    background-size: 12px;
+    /* Ensure native OS dropdown respects theme */
+    color-scheme: light; 
+  }
+
+  /* Force dark color scheme for native dropdowns in dark mode */
+  .qp-root.agent-theme[data-agent-theme='dark-console'] .qp-select {
+    color-scheme: dark;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgb(229, 231, 235)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  }
+
+  .qp-select:hover {
+    background-color: var(--ac-hover-bg);
+    border-color: var(--ac-border-strong);
+  }
+
+  .qp-select:focus {
+    outline: none;
+    border-color: var(--ac-accent);
+  }
+  
+  .qp-select option {
+     background-color: var(--ac-surface);
+     color: var(--ac-text);
+  }
 `;
