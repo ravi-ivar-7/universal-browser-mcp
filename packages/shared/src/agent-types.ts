@@ -155,6 +155,10 @@ export interface AgentProject {
    * Default: true
    */
   enableChromeMcp?: boolean;
+  /**
+   * Preferred reasoning effort for Codex models in this project.
+   */
+  reasoningEffort?: CodexReasoningEffort;
   createdAt: string;
   updatedAt: string;
   lastActiveAt?: string;
