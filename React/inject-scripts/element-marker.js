@@ -2373,11 +2373,11 @@
         primaryMatch.scrollIntoView({
           block: 'center',
           inline: 'center',
-          behavior: 'smooth',
+          behavior: 'auto',
         });
       }
 
-      await sleep(150);
+      await sleep(300);
 
       // Draw highlight rectangles
       drawRects(filteredMatches, CONFIG.COLORS.VERIFY, false);

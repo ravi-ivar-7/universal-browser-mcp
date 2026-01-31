@@ -52,10 +52,10 @@ async function ensureContextMenu() {
     // Remove and re-create our single menu to avoid duplication
     try {
       await chrome.contextMenus.remove(CONTEXT_MENU_ID);
-    } catch {}
+    } catch { }
     await chrome.contextMenus.create({
       id: CONTEXT_MENU_ID,
-      title: '标注元素',
+      title: 'Mark Element',
       contexts: ['all'],
     });
   } catch (e) {
@@ -80,12 +80,10 @@ async function isMarkerInjected(tabId: number): Promise<boolean> {
 }
 
 /**
- * Inject element-marker.js into the tab if not already injected
+ * Ensure element-marker.js is injected (does NOT start the tool UI)
  */
-async function injectMarkerHelper(tabId: number) {
-  // Check if already injected via ping
+async function ensureMarkerScript(tabId: number) {
   const alreadyInjected = await isMarkerInjected(tabId);
-
   if (!alreadyInjected) {
     try {
       await chrome.scripting.executeScript({
@@ -93,12 +91,23 @@ async function injectMarkerHelper(tabId: number) {
         files: ['inject-scripts/element-marker.js'],
         world: 'ISOLATED',
       } as any);
-    } catch (e) {
-      // Script injection may fail on some pages (e.g., chrome:// URLs)
+      // Brief wait for script to initialize listeners
+      await new Promise(r => setTimeout(r, 100));
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      if (msg.includes('Cannot access a chrome:// URL') || msg.includes('The tab was closed')) {
+        return;
+      }
       console.warn('ElementMarker: script injection failed:', e);
     }
   }
+}
 
+/**
+ * Inject element-marker.js and start the tool UI
+ */
+async function injectMarkerHelper(tabId: number) {
+  await ensureMarkerScript(tabId);
   try {
     await chrome.tabs.sendMessage(tabId, { action: 'element_marker_start' } as any);
   } catch (e) {
@@ -107,10 +116,8 @@ async function injectMarkerHelper(tabId: number) {
 }
 
 export function initElementMarkerListeners() {
-  // Ensure context menu on startup
-  ensureContextMenu().catch(() => {});
+  ensureContextMenu().catch(() => { });
 
-  // Respond to RR triggers refresh by re-ensuring our menu a bit later
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     try {
       switch (message?.type) {
@@ -124,6 +131,30 @@ export function initElementMarkerListeners() {
           injectMarkerHelper(tabId)
             .then(() => sendResponse({ success: true }))
             .catch((e) => sendResponse({ success: false, error: e?.message || String(e) }));
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.ELEMENT_MARKER_HIGHLIGHT: {
+          const tabId = message.tabId;
+          const selector = message.selector;
+          const selectorType = message.selectorType;
+          const listMode = message.listMode;
+
+          if (typeof tabId !== 'number') {
+            sendResponse({ success: false, error: 'invalid tabId' });
+            return true;
+          }
+
+          (async () => {
+            await ensureMarkerScript(tabId);
+            const res = await chrome.tabs.sendMessage(tabId, {
+              action: 'element_marker_highlight',
+              selector,
+              selectorType,
+              listMode
+            });
+            sendResponse(res);
+          })().catch(e => sendResponse({ success: false, error: String(e) }));
+
           return true;
         }
         case BACKGROUND_MESSAGE_TYPES.ELEMENT_MARKER_LIST_ALL: {
@@ -203,7 +234,7 @@ export function initElementMarkerListeners() {
                 files: ['inject-scripts/accessibility-tree-helper.js'],
                 world: 'ISOLATED',
               } as any);
-            } catch {}
+            } catch { }
 
             // 2) Resolve selector -> ref/center via helper (same as tools)
             let ensured: any;
@@ -315,17 +346,17 @@ export function initElementMarkerListeners() {
                     : 300;
                   const payload = coords
                     ? {
-                        action: 'scroll',
-                        scrollDirection: direction,
-                        scrollAmount: amount,
-                        coordinates: coords,
-                      }
+                      action: 'scroll',
+                      scrollDirection: direction,
+                      scrollAmount: amount,
+                      coordinates: coords,
+                    }
                     : ({
-                        action: 'scroll',
-                        scrollDirection: direction,
-                        scrollAmount: amount,
-                        ref: ensured.ref,
-                      } as any);
+                      action: 'scroll',
+                      scrollDirection: direction,
+                      scrollAmount: amount,
+                      ref: ensured.ref,
+                    } as any);
                   const r = await computerTool.execute(payload as any);
                   const error = r.isError ? extractToolError(r) : undefined;
                   base.tool = { name: 'computer.scroll', ok: !r.isError, error };
@@ -347,7 +378,7 @@ export function initElementMarkerListeners() {
                       waitForNavigation: false,
                       timeout: 2000,
                     });
-                  } catch {}
+                  } catch { }
                   const r = await keyboardTool.execute({ keys, delay: 0 } as any);
                   const error = r.isError ? extractToolError(r) : undefined;
                   base.tool = { name: 'keyboard.simulate', ok: !r.isError, error };
@@ -385,7 +416,7 @@ export function initElementMarkerListeners() {
         case BACKGROUND_MESSAGE_TYPES.RR_REFRESH_TRIGGERS:
         case BACKGROUND_MESSAGE_TYPES.RR_SAVE_TRIGGER:
         case BACKGROUND_MESSAGE_TYPES.RR_DELETE_TRIGGER: {
-          setTimeout(() => ensureContextMenu().catch(() => {}), 300);
+          setTimeout(() => ensureContextMenu().catch(() => { }), 300);
           break;
         }
       }

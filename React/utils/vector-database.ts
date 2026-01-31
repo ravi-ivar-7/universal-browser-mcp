@@ -280,14 +280,25 @@ export class VectorDatabase {
             const indexCount = this.index.getCurrentCount();
             if (indexCount > 0) {
               console.warn(
-                `VectorDatabase: Index has ${indexCount} vectors but no document mappings found. This may cause label mismatch.`,
+                `VectorDatabase: Index has ${indexCount} vectors but no document mappings found. This causes label mismatch.`,
               );
-              this.nextLabel = indexCount;
+              console.warn(
+                'VectorDatabase: Resetting index to ensure consistency...',
+              );
+              // Reset index to match empty documents
+              this.index.initIndex(
+                this.config.maxElements,
+                this.config.M,
+                this.config.efConstruction,
+                200,
+              );
+              this.index.setEfSearch(this.config.efSearch);
+              this.nextLabel = 0;
             } else {
               this.nextLabel = 0;
             }
             console.log(
-              `VectorDatabase: No document mappings found, starting with next label: ${this.nextLabel}`,
+              `VectorDatabase: No document mappings found, starting fresh with next label: ${this.nextLabel}`,
             );
           }
         } catch (loadError) {

@@ -239,8 +239,63 @@ function App() {
         }
     };
 
+    const ensureTabForMarker = async (marker: ElementMarker): Promise<number | null> => {
+        if (!marker.url) return null;
+
+        const tabs = await chrome.tabs.query({});
+        // Try exact match or match ignoring trailing slash
+        let targetTab = tabs.find(t => {
+            const tUrl = (t.url || '').replace(/\/$/, '');
+            const mUrl = marker.url.replace(/\/$/, '');
+            return tUrl === mUrl;
+        });
+
+        if (!targetTab) {
+            // Try domain match if exact URL fails (fallback to first tab of same domain)
+            // matching domain + path roughly
+            targetTab = tabs.find(t => (t.url || '').includes(marker.url) || marker.url.includes(t.url || '____'));
+        }
+
+        if (targetTab?.id) {
+            await chrome.tabs.update(targetTab.id, { active: true });
+            if (targetTab.windowId) {
+                await chrome.windows.update(targetTab.windowId, { focused: true });
+            }
+            // Give a moment for focus and potential render catch-up
+            await new Promise(r => setTimeout(r, 500));
+            return targetTab.id;
+        }
+
+        // Open new tab
+        const newTab = await chrome.tabs.create({ url: marker.url, active: true });
+        if (newTab.id) {
+            // Wait for load
+            await new Promise<void>(resolve => {
+                const listener = (tid: number, change: any) => {
+                    if (tid === newTab.id && change.status === 'complete') {
+                        chrome.tabs.onUpdated.removeListener(listener);
+                        resolve();
+                    }
+                };
+                chrome.tabs.onUpdated.addListener(listener);
+                // 10s timeout
+                setTimeout(() => {
+                    chrome.tabs.onUpdated.removeListener(listener);
+                    resolve();
+                }, 10000);
+            });
+            // Extra buffer after complete
+            await new Promise(r => setTimeout(r, 500));
+            return newTab.id;
+        }
+
+        return null;
+    };
+
     const validateMarker = async (marker: ElementMarker) => {
         try {
+            const ensuredTabId = await ensureTabForMarker(marker);
+
             const res: any = await chrome.runtime.sendMessage({
                 type: BACKGROUND_MESSAGE_TYPES.ELEMENT_MARKER_VALIDATE,
                 selector: marker.selector,
@@ -249,22 +304,26 @@ function App() {
                 listMode: !!marker.listMode,
             } as any);
 
-            if (res?.tool?.ok !== false) {
-                await highlightInTab(marker);
+            if (res?.tool?.ok !== false && ensuredTabId) {
+                await highlightInTab(marker, ensuredTabId);
             }
         } catch (e) {
             console.error('Failed to validate marker:', e);
         }
     };
 
-    const highlightInTab = async (marker: ElementMarker) => {
+    const highlightInTab = async (marker: ElementMarker, targetTabId?: number) => {
         try {
-            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-            const tabId = tabs[0]?.id;
+            let tabId = targetTabId;
+            if (!tabId) {
+                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                tabId = tabs[0]?.id;
+            }
             if (!tabId) return;
 
-            await chrome.tabs.sendMessage(tabId, {
-                action: 'element_marker_highlight',
+            await chrome.runtime.sendMessage({
+                type: BACKGROUND_MESSAGE_TYPES.ELEMENT_MARKER_HIGHLIGHT,
+                tabId,
                 selector: marker.selector,
                 selectorType: marker.selectorType || 'css',
                 listMode: !!marker.listMode,

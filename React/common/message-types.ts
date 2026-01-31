@@ -33,6 +33,7 @@ export const BACKGROUND_MESSAGE_TYPES = {
   ELEMENT_MARKER_DELETE: 'element_marker_delete',
   ELEMENT_MARKER_VALIDATE: 'element_marker_validate',
   ELEMENT_MARKER_START: 'element_marker_start_from_popup',
+  ELEMENT_MARKER_HIGHLIGHT: 'element_marker_highlight',
   // RR / DOM Trigger integration (used by Element Marker to refresh context menu)
   RR_REFRESH_TRIGGERS: 'rr_refresh_triggers',
   RR_SAVE_TRIGGER: 'rr_save_trigger',

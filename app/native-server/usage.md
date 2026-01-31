@@ -119,5 +119,10 @@ Perform complex mouse/keyboard actions or take screenshots.
 ## ⚠️ Troubleshooting
 - **Server Not Found**: Ensure `npm run dev` is active in the `native-server` folder.
 - **Tools Not Appearing**: Check the Chrome Extension (WXT/Universal Extension) and make sure "Native Host" status is green.
+- **Extension Connection Failed**: 
+  1. Open `chrome://extensions`, find "Chrome MCP Server", and copy its **ID**.
+  2. Open `app/native-server/src/scripts/constant.ts`.
+  3. Add your ID to the `EXTENSION_IDS` list.
+  4. Run `npm run register` in the `native-server` folder to apply changes.
 - **Port Conflict**: The default port is `12306`. If you change it, update your client URL.
 - **JSON Parsing Error**: Ensure all values in `arguments` match the expected schema (strings for refs, numbers for tabIds).

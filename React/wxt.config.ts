@@ -8,7 +8,10 @@ import Icons from 'unplugin-icons/vite';
 config({ path: resolve(process.cwd(), '.env') });
 config({ path: resolve(process.cwd(), '.env.local') });
 
-const CHROME_EXTENSION_KEY = process.env.CHROME_EXTENSION_KEY;
+const CHROME_EXTENSION_KEY =
+  process.env.CHROME_EXTENSION_KEY === 'YOUR_PRIVATE_KEY_HERE'
+    ? undefined
+    : process.env.CHROME_EXTENSION_KEY;
 // Detect dev mode early for manifest-level switches
 const IS_DEV = process.env.NODE_ENV !== 'production' && process.env.MODE !== 'production';
 
@@ -125,9 +128,8 @@ export default defineConfig({
         hook: 'writeBundle',
         // Enable watch so changes to these files are reflected during dev
         watch: {
-          // Use default patterns inferred from targets; explicit true enables watching
-          // Vite plugin will watch src patterns and re-copy on change
-        } as any,
+          reloadPageOnChange: true,
+        },
       }) as any,
     ],
     build: {
