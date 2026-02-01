@@ -70,6 +70,84 @@ function getThemeFromDocument(): AgentThemeId {
     return isValidTheme(value) ? value : DEFAULT_THEME;
 }
 
+import { getThemeTokens, ThemeTokens } from './AgentThemeTokens';
+
+/**
+ * Apply theme tokens as CSS variables to an element (defaults to documentElement)
+ */
+export function applyThemeTokens(themeId: AgentThemeId, target: HTMLElement = document.documentElement): void {
+    const tokens = getThemeTokens(themeId);
+    const prefix = '--ac-';
+
+    // Map keys to CSS variable names
+    const mapping: Record<keyof ThemeTokens, string> = {
+        bg: 'bg',
+        surface: 'surface',
+        surfaceMuted: 'surface-muted',
+        surfaceInset: 'surface-inset',
+        text: 'text',
+        textMuted: 'text-muted',
+        textSubtle: 'text-subtle',
+        textInverse: 'text-inverse',
+        border: 'border',
+        borderStrong: 'border-strong',
+        accent: 'accent',
+        accentHover: 'accent-hover',
+        accentSubtle: 'accent-subtle',
+        accentContrast: 'accent-contrast',
+        hoverBg: 'hover-bg',
+        hoverBgSubtle: 'hover-bg-subtle',
+        shadowCard: 'shadow-card',
+        shadowFloat: 'shadow-float',
+        focusRing: 'focus-ring',
+        radiusCard: 'radius-card',
+        radiusInner: 'radius-inner',
+        radiusButton: 'radius-button',
+        link: 'link',
+        danger: 'danger',
+        success: 'success',
+        warning: 'warning',
+        fontSans: 'font-sans',
+        fontSerif: 'font-serif',
+        fontMono: 'font-mono',
+        fontGrotesk: 'font-grotesk',
+        motionFast: 'motion-fast',
+        motionNormal: 'motion-normal',
+        borderWidth: 'border-width',
+        borderWidthStrong: 'border-width-strong',
+        scrollbarSize: 'scrollbar-size',
+        scrollbarThumb: 'scrollbar-thumb',
+        scrollbarThumbHover: 'scrollbar-thumb-hover',
+        timelineLine: 'timeline-line',
+        timelineNode: 'timeline-node',
+        timelineNodeActive: 'timeline-node-active',
+        timelineNodePulseShadow: 'timeline-node-pulse-shadow',
+        timelineNodeTool: 'timeline-node-tool',
+        chipBg: 'chip-bg',
+        chipText: 'chip-text',
+        codeBg: 'code-bg',
+        codeBorder: 'code-border',
+        codeText: 'code-text',
+        accentGlow: 'accent-glow',
+        error: 'error',
+        diffDelBg: 'diff-del-bg',
+        diffDelBorder: 'diff-del-border',
+    };
+
+    // Apply each token
+    Object.entries(mapping).forEach(([key, varName]) => {
+        const value = tokens[key as keyof ThemeTokens];
+        if (value) {
+            target.style.setProperty(`${prefix}${varName}`, value);
+        }
+    });
+
+    // Also set semantic font variables
+    target.style.setProperty('--ac-font-body', tokens.fontSans);
+    target.style.setProperty('--ac-font-heading', tokens.fontSerif);
+    target.style.setProperty('--ac-font-code', tokens.fontMono);
+}
+
 /**
  * Hook for managing AgentChat theme
  */
@@ -88,13 +166,17 @@ export function useAgentTheme(): UseAgentTheme {
 
             if (isValidTheme(stored)) {
                 setThemeState(stored);
+                applyThemeTokens(stored);
             } else {
-                // Use preloaded or default
-                setThemeState(getThemeFromDocument());
+                const docTheme = getThemeFromDocument();
+                setThemeState(docTheme);
+                applyThemeTokens(docTheme);
             }
         } catch (error) {
             console.error('[useAgentTheme] Failed to load theme:', error);
-            setThemeState(getThemeFromDocument());
+            const docTheme = getThemeFromDocument();
+            setThemeState(docTheme);
+            applyThemeTokens(docTheme);
         } finally {
             setReady(true);
         }
@@ -114,6 +196,7 @@ export function useAgentTheme(): UseAgentTheme {
 
         // Also update document element for consistency
         document.documentElement.dataset.agentTheme = id;
+        applyThemeTokens(id);
 
         // Persist to storage
         try {
@@ -128,6 +211,7 @@ export function useAgentTheme(): UseAgentTheme {
      */
     const applyTo = useCallback((el: HTMLElement): void => {
         el.dataset.agentTheme = theme;
+        applyThemeTokens(theme, el);
     }, [theme]);
 
     /**
@@ -168,6 +252,7 @@ export async function preloadAgentTheme(): Promise<AgentThemeId> {
     // Set on document element for immediate application
     if (typeof document !== 'undefined') {
         document.documentElement.dataset.agentTheme = themeId;
+        applyThemeTokens(themeId);
     }
 
     return themeId;

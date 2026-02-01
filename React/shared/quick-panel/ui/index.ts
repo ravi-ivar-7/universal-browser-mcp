@@ -5,17 +5,6 @@
  */
 
 // ============================================================
-// Shell (unified container for search + chat views)
-// ============================================================
-
-export {
-  mountQuickPanelShell,
-  type QuickPanelShellElements,
-  type QuickPanelShellManager,
-  type QuickPanelShellOptions,
-} from './panel-shell';
-
-// ============================================================
 // Shadow DOM host
 // ============================================================
 
@@ -27,43 +16,15 @@ export {
 } from './shadow-host';
 
 // ============================================================
-// Search UI Components
+// React UI Components
 // ============================================================
 
-export {
-  createSearchInput,
-  type SearchInputManager,
-  type SearchInputOptions,
-  type SearchInputState,
-} from './search-input';
-
-export {
-  createQuickEntries,
-  type QuickEntriesManager,
-  type QuickEntriesOptions,
-} from './quick-entries';
-
-// ============================================================
-// AI Chat Components
-// ============================================================
-
-export {
-  createQuickPanelMessageRenderer,
-  type QuickPanelMessageRenderer,
-  type QuickPanelMessageRendererOptions,
-} from './message-renderer';
-
-export { createMarkdownRenderer, type MarkdownRendererInstance } from './markdown-renderer';
-
-export {
-  mountQuickPanelAiChatPanel,
-  type QuickPanelAiChatPanelManager,
-  type QuickPanelAiChatPanelOptions,
-  type QuickPanelAiChatPanelState,
-} from './ai-chat-panel';
-
-// ============================================================
-// Styles
-// ============================================================
-
-export { QUICK_PANEL_STYLES } from './styles';
+export * from './components/mount';
+export * from './components/App';
+export * from './components/QuickPanelShell';
+export * from './components/SearchPanel';
+export * from './components/AiChatPanel';
+export * from './components/SearchInput';
+export * from './components/QuickEntries';
+export * from './components/MessageItem';
+export * from './components/MarkdownContent';

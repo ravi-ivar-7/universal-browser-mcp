@@ -15,7 +15,18 @@
  */
 
 import { Disposer } from '@/shared/utils/disposables';
-import { QUICK_PANEL_STYLES } from './styles';
+import tailwindStyles from '@/entrypoints/styles/tailwind.css?inline';
+import { applyThemeTokens, type AgentThemeId } from '@/shared/theme/ThemeEngine';
+
+const SHADOW_RESET = /* css */ `
+  :host {
+    all: initial;
+    display: block;
+  }
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+`;
 
 // ============================================================
 // Types
@@ -193,9 +204,10 @@ async function readStoredThemeId(): Promise<string> {
  * Apply a theme ID to the root element, considering system dark mode preference.
  */
 function applyThemeId(root: HTMLElement, themeId: string): void {
-  const normalizedTheme = normalizeThemeId(themeId);
-  const effectiveTheme = getEffectiveThemeId(normalizedTheme);
+  const normalizedTheme = normalizeThemeId(themeId) as AgentThemeId;
+  const effectiveTheme = getEffectiveThemeId(normalizedTheme) as AgentThemeId;
   root.dataset.agentTheme = effectiveTheme;
+  applyThemeTokens(effectiveTheme, root);
 }
 
 // ============================================================
@@ -262,7 +274,7 @@ export function mountQuickPanelShadowHost(
 
   // Inject styles
   const styleEl = document.createElement('style');
-  styleEl.textContent = QUICK_PANEL_STYLES;
+  styleEl.textContent = tailwindStyles + '\n' + SHADOW_RESET;
   shadowRoot.append(styleEl);
 
   // Create UI container

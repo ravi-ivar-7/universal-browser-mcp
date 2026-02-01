@@ -9,6 +9,9 @@ import { initElementMarkerListeners } from './element-marker';
 import { initQuickPanelAgentHandler } from './quick-panel/agent-handler';
 import { initQuickPanelCommands } from './quick-panel/commands';
 import { initQuickPanelTabsHandler } from './quick-panel/tabs-handler';
+import { initQuickPanelBookmarksHandler } from './quick-panel/bookmarks-handler';
+import { initQuickPanelHistoryHandler } from './quick-panel/history-handler';
+import { initQuickPanelNavigationHandler } from './quick-panel/navigation-handler';
 
 /**
  * Background script entry point
@@ -38,6 +41,10 @@ export default defineBackground(() => {
   initQuickPanelTabsHandler();
   // Quick Panel: keyboard shortcut handler
   initQuickPanelCommands();
+  // Quick Panel: additional handlers
+  initQuickPanelBookmarksHandler();
+  initQuickPanelHistoryHandler();
+  initQuickPanelNavigationHandler();
 
   // Conditionally initialize semantic similarity engine if model cache exists
   initializeSemanticEngineIfCached()

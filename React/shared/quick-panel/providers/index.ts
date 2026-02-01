@@ -1,11 +1,5 @@
-/**
- * Quick Panel Search Providers
- *
- * Exports all search providers for Quick Panel.
- */
-
-export {
-  createTabsProvider,
-  type TabsProviderOptions,
-  type TabsSearchResultData,
-} from './tabs-provider';
+export * from './tabs-provider';
+export * from './bookmarks-provider';
+export * from './history-provider';
+export * from './commands-provider';
+export * from './page-structure-provider';

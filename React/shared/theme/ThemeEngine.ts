@@ -1,4 +1,11 @@
-import { AgentThemeId } from '../hooks/useAgentTheme';
+export type AgentThemeId =
+    | 'warm-editorial'
+    | 'blueprint-architect'
+    | 'zen-journal'
+    | 'neo-pop'
+    | 'dark-console'
+    | 'swiss-grid'
+    | 'glass-morphism';
 
 export interface ThemeTokens {
     bg: string;
@@ -82,11 +89,8 @@ const COMMON_STATUS = {
     error: '#ef4444',
 };
 
-/**
- * Creates theme tokens with defaults for missing derived values
- */
 function createTheme(base: Omit<ThemeTokens, 'timelineLine' | 'timelineNode' | 'timelineNodeActive' | 'timelineNodePulseShadow' | 'timelineNodeTool' | 'chipBg' | 'chipText' | 'codeBg' | 'codeBorder' | 'codeText' | 'diffDelBg' | 'diffDelBorder' | 'fontSans' | 'fontSerif' | 'fontMono' | 'fontGrotesk' | 'motionFast' | 'motionNormal' | 'borderWidth' | 'borderWidthStrong' | 'radiusCard' | 'radiusInner' | 'radiusButton' | 'scrollbarSize' | 'success' | 'warning' | 'danger' | 'error' | 'accentGlow'>, overrides?: Partial<ThemeTokens>): ThemeTokens {
-    const theme = {
+    return {
         ...COMMON_FONTS,
         ...COMMON_GEOMETRY,
         ...COMMON_STATUS,
@@ -105,8 +109,7 @@ function createTheme(base: Omit<ThemeTokens, 'timelineLine' | 'timelineNode' | '
         diffDelBg: 'rgba(239, 68, 68, 0.1)',
         diffDelBorder: 'rgba(239, 68, 68, 0.2)',
         ...overrides,
-    };
-    return theme as ThemeTokens;
+    } as ThemeTokens;
 }
 
 export const THEME_TOKENS: Record<AgentThemeId, ThemeTokens> = {
@@ -277,8 +280,107 @@ export const THEME_TOKENS: Record<AgentThemeId, ThemeTokens> = {
         radiusInner: '0px',
         radiusButton: '0px',
     }),
+    'glass-morphism': createTheme({
+        bg: 'rgba(20, 20, 25, 0.65)', // High transparency dark bg
+        surface: 'rgba(30, 30, 35, 0.4)', // Very sheer surface
+        surfaceMuted: 'rgba(255, 255, 255, 0.05)',
+        surfaceInset: 'rgba(0, 0, 0, 0.2)',
+        text: '#ffffff',
+        textMuted: 'rgba(255, 255, 255, 0.7)',
+        textSubtle: 'rgba(255, 255, 255, 0.5)',
+        textInverse: '#000000',
+        border: 'rgba(255, 255, 255, 0.1)',
+        borderStrong: 'rgba(255, 255, 255, 0.2)',
+        accent: '#38bdf8', // Sky blue
+        accentHover: '#7dd3fc',
+        accentSubtle: 'rgba(56, 189, 248, 0.15)',
+        accentContrast: '#000000',
+        hoverBg: 'rgba(255, 255, 255, 0.1)',
+        hoverBgSubtle: 'rgba(255, 255, 255, 0.05)',
+        shadowCard: '0 8px 32px 0 rgba(0, 0, 0, 0.36)', // Soft deep shadow
+        shadowFloat: '0 8px 32px 0 rgba(0, 0, 0, 0.36)',
+        focusRing: 'rgba(56, 189, 248, 0.5)',
+        link: '#38bdf8',
+        scrollbarThumb: 'rgba(255, 255, 255, 0.2)',
+        scrollbarThumbHover: 'rgba(255, 255, 255, 0.35)',
+    }, {
+        fontSans: COMMON_FONTS.sans,
+        fontSerif: COMMON_FONTS.sans, // Clean sans for glass
+        radiusCard: '16px', // Rounded for modern feel
+    }),
 };
 
 export function getThemeTokens(themeId: AgentThemeId): ThemeTokens {
     return THEME_TOKENS[themeId] || THEME_TOKENS['warm-editorial'];
+}
+
+export function applyThemeTokens(themeId: AgentThemeId, target: HTMLElement): void {
+    const tokens = getThemeTokens(themeId);
+    const prefix = '--ac-';
+
+    const mapping: Record<keyof ThemeTokens, string> = {
+        bg: 'bg',
+        surface: 'surface',
+        surfaceMuted: 'surface-muted',
+        surfaceInset: 'surface-inset',
+        text: 'text',
+        textMuted: 'text-muted',
+        textSubtle: 'text-subtle',
+        textInverse: 'text-inverse',
+        border: 'border',
+        borderStrong: 'border-strong',
+        accent: 'accent',
+        accentHover: 'accent-hover',
+        accentSubtle: 'accent-subtle',
+        accentContrast: 'accent-contrast',
+        accentGlow: 'accent-glow',
+        hoverBg: 'hover-bg',
+        hoverBgSubtle: 'hover-bg-subtle',
+        shadowCard: 'shadow-card',
+        shadowFloat: 'shadow-float',
+        focusRing: 'focus-ring',
+        radiusCard: 'radius-card',
+        radiusInner: 'radius-inner',
+        radiusButton: 'radius-button',
+        link: 'link',
+        danger: 'danger',
+        success: 'success',
+        warning: 'warning',
+        error: 'error',
+        fontSans: 'font-sans',
+        fontSerif: 'font-serif',
+        fontMono: 'font-mono',
+        fontGrotesk: 'font-grotesk',
+        motionFast: 'motion-fast',
+        motionNormal: 'motion-normal',
+        borderWidth: 'border-width',
+        borderWidthStrong: 'border-width-strong',
+        scrollbarSize: 'scrollbar-size',
+        scrollbarThumb: 'scrollbar-thumb',
+        scrollbarThumbHover: 'scrollbar-thumb-hover',
+        timelineLine: 'timeline-line',
+        timelineNode: 'timeline-node',
+        timelineNodeActive: 'timeline-node-active',
+        timelineNodePulseShadow: 'timeline-node-pulse-shadow',
+        timelineNodeTool: 'timeline-node-tool',
+        chipBg: 'chip-bg',
+        chipText: 'chip-text',
+        codeBg: 'code-bg',
+        codeBorder: 'code-border',
+        codeText: 'code-text',
+        diffDelBg: 'diff-del-bg',
+        diffDelBorder: 'diff-del-border',
+    };
+
+    Object.entries(mapping).forEach(([key, varName]) => {
+        const value = tokens[key as keyof ThemeTokens];
+        if (value) {
+            target.style.setProperty(`${prefix}${varName}`, value);
+        }
+    });
+
+    // Semantic font variables
+    target.style.setProperty('--ac-font-body', tokens.fontSans);
+    target.style.setProperty('--ac-font-heading', tokens.fontSerif);
+    target.style.setProperty('--ac-font-code', tokens.fontMono);
 }

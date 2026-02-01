@@ -113,7 +113,7 @@ function coerceScore(value: unknown): number {
 // ============================================================
 
 export class SearchEngine {
-  private readonly providersById = new Map<string, SearchProvider>();
+  private readonly providersById = new Map<string, SearchProvider<any>>();
   private readonly cache: LRUCache<string, CacheEntry>;
 
   private readonly debounceMs: number;
@@ -145,7 +145,7 @@ export class SearchEngine {
 
     // Register initial providers
     for (const provider of options.providers ?? []) {
-      this.registerProvider(provider);
+      this.registerProvider(provider as SearchProvider<any>);
     }
   }
 
@@ -157,7 +157,7 @@ export class SearchEngine {
    * Register a search provider.
    * If a provider with the same ID exists, it will be replaced.
    */
-  registerProvider(provider: SearchProvider): void {
+  registerProvider(provider: SearchProvider<any>): void {
     if (this.disposed) return;
 
     const id = String(provider?.id ?? '').trim();
@@ -203,8 +203,15 @@ export class SearchEngine {
   /**
    * List all registered providers.
    */
-  listProviders(): SearchProvider[] {
+  listProviders(): SearchProvider<any>[] {
     return [...this.providersById.values()];
+  }
+
+  /**
+   * Get a provider by ID.
+   */
+  getProvider(providerId: string): SearchProvider<any> | undefined {
+    return this.providersById.get(String(providerId ?? '').trim());
   }
 
   // --------------------------------------------------------
@@ -568,9 +575,9 @@ export class SearchEngine {
     // Filter out abort-related errors when cancelled to avoid UI noise
     const filteredErrors = cancelled
       ? providerErrors.filter(
-          (e) =>
-            !e.error.toLowerCase().includes('abort') && !e.error.toLowerCase().includes('cancel'),
-        )
+        (e) =>
+          !e.error.toLowerCase().includes('abort') && !e.error.toLowerCase().includes('cancel'),
+      )
       : providerErrors;
 
     const response: SearchEngineResponse = {

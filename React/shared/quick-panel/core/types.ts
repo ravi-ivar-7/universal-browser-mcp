@@ -12,7 +12,7 @@
 /**
  * Available search scopes in Quick Panel
  */
-export type QuickPanelScope = 'all' | 'tabs' | 'bookmarks' | 'history' | 'content' | 'commands';
+export type QuickPanelScope = 'all' | 'tabs' | 'bookmarks' | 'history' | 'structure';
 
 /**
  * Scope definition with display properties
@@ -21,13 +21,6 @@ export interface QuickPanelScopeDefinition {
   id: QuickPanelScope;
   label: string;
   icon: string;
-  /**
-   * Scope prefix for search input recognition.
-   * - Space-terminated prefixes: "t ", "b ", "h ", "c "
-   * - Command mode prefix: ">"
-   * - null for 'all' scope (no prefix)
-   */
-  prefix: string | null;
 }
 
 /** Default scope when no prefix is detected */
@@ -35,12 +28,11 @@ export const DEFAULT_SCOPE: QuickPanelScope = 'all';
 
 /** Scope definitions following PRD spec */
 export const QUICK_PANEL_SCOPES: Readonly<Record<QuickPanelScope, QuickPanelScopeDefinition>> = {
-  all: { id: 'all', label: 'All', icon: '\u2318', prefix: null },
-  tabs: { id: 'tabs', label: 'Tabs', icon: '\uD83D\uDDC2\uFE0F', prefix: 't ' },
-  bookmarks: { id: 'bookmarks', label: 'Bookmarks', icon: '\u2B50', prefix: 'b ' },
-  history: { id: 'history', label: 'History', icon: '\uD83D\uDD50', prefix: 'h ' },
-  content: { id: 'content', label: 'Content', icon: '\uD83D\uDCC4', prefix: 'c ' },
-  commands: { id: 'commands', label: 'Commands', icon: '>', prefix: '>' },
+  all: { id: 'all', label: 'All', icon: '\u2318' },
+  tabs: { id: 'tabs', label: 'Tabs', icon: '\uD83D\uDDC2\uFE0F' },
+  bookmarks: { id: 'bookmarks', label: 'Bookmarks', icon: '\u2B50' },
+  history: { id: 'history', label: 'History', icon: '\uD83D\uDD50' },
+  structure: { id: 'structure', label: 'Page Structure', icon: '\uD83D\uDCC4' },
 } as const;
 
 /**
@@ -79,52 +71,20 @@ export interface ParsedScopeQuery {
 }
 
 /**
- * Parse a scope-prefixed input string following PRD conventions:
- * - `>foo` -> scope=commands, query="foo"
- * - `t foo` -> scope=tabs, query="foo"
- * - `b foo` -> scope=bookmarks, query="foo"
- * - `h foo` -> scope=history, query="foo"
- * - `c foo` -> scope=content, query="foo"
- *
- * Only checks the beginning of the string (after trimming leading whitespace).
+ * Parse a scope-prefixed input string.
+ * (Shortcuts removed as per user request)
  */
 export function parseScopePrefixedQuery(
   rawInput: string,
   defaultScope: QuickPanelScope = DEFAULT_SCOPE,
 ): ParsedScopeQuery {
-  const raw = typeof rawInput === 'string' ? rawInput : '';
-  const leadingTrimmed = raw.replace(/^\s+/, '');
-
-  // Check for command mode prefix (>)
-  if (leadingTrimmed.startsWith('>')) {
-    return {
-      raw,
-      scope: 'commands',
-      query: leadingTrimmed.slice(1).trimStart(),
-      consumedPrefix: true,
-    };
-  }
-
-  // Check for space-terminated scope prefixes (t, b, h, c)
-  const match = leadingTrimmed.match(/^([tbhc])\s+(.*)$/s);
-  if (match) {
-    const prefix = match[1];
-    const rest = (match[2] ?? '').trimStart();
-
-    const scopeMap: Record<string, QuickPanelScope> = {
-      t: 'tabs',
-      b: 'bookmarks',
-      h: 'history',
-      c: 'content',
-    };
-
-    const scope = scopeMap[prefix] ?? defaultScope;
-
-    return { raw, scope, query: rest, consumedPrefix: true };
-  }
-
-  // No prefix detected
-  return { raw, scope: defaultScope, query: raw.trim(), consumedPrefix: false };
+  // Just return defaults, no prefix parsing
+  return {
+    raw: rawInput || '',
+    scope: defaultScope,
+    query: (rawInput || '').trim(),
+    consumedPrefix: false
+  };
 }
 
 // ============================================================

@@ -48,6 +48,10 @@ export const BACKGROUND_MESSAGE_TYPES = {
   QUICK_PANEL_TABS_QUERY: 'quick_panel_tabs_query',
   QUICK_PANEL_TAB_ACTIVATE: 'quick_panel_tab_activate',
   QUICK_PANEL_TAB_CLOSE: 'quick_panel_tab_close',
+  // Quick Panel Search - Bookmarks & History bridge
+  QUICK_PANEL_BOOKMARKS_QUERY: 'quick_panel_bookmarks_query',
+  QUICK_PANEL_HISTORY_QUERY: 'quick_panel_history_query',
+  QUICK_PANEL_OPEN_URL: 'quick_panel_open_url',
   // Quick Panel session/project management
   QUICK_PANEL_UPDATE_CONTEXT: 'quick_panel_update_context',
   QUICK_PANEL_GET_CONTEXT: 'quick_panel_get_context',
@@ -382,4 +386,74 @@ export type QuickPanelCloseTabResponse = { success: true } | { success: false; e
 export interface QuickPanelCloseTabMessage {
   type: typeof BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_TAB_CLOSE;
   payload: QuickPanelCloseTabPayload;
+}
+
+// ============================================================
+// Quick Panel Search - Bookmarks Bridge Contracts
+// ============================================================
+
+export interface QuickPanelBookmark {
+  id: string;
+  title: string;
+  url: string;
+  dateAdded?: number;
+  folder?: string;
+}
+
+export interface QuickPanelBookmarksQueryPayload {
+  query?: string;
+  limit?: number;
+}
+
+export type QuickPanelBookmarksQueryResponse =
+  | { success: true; bookmarks: QuickPanelBookmark[] }
+  | { success: false; error: string };
+
+export interface QuickPanelBookmarksQueryMessage {
+  type: typeof BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_BOOKMARKS_QUERY;
+  payload: QuickPanelBookmarksQueryPayload;
+}
+
+// ============================================================
+// Quick Panel Search - History Bridge Contracts
+// ============================================================
+
+export interface QuickPanelHistoryItem {
+  id: string;
+  title?: string;
+  url?: string;
+  lastVisitTime?: number;
+  visitCount?: number;
+}
+
+export interface QuickPanelHistoryQueryPayload {
+  query: string; // Chrome history search requires a text query (can be empty string)
+  limit?: number;
+  startTime?: number;
+}
+
+export type QuickPanelHistoryQueryResponse =
+  | { success: true; history: QuickPanelHistoryItem[] }
+  | { success: false; error: string };
+
+export interface QuickPanelHistoryQueryMessage {
+  type: typeof BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_HISTORY_QUERY;
+  payload: QuickPanelHistoryQueryPayload;
+}
+
+// ============================================================
+// Quick Panel Search - Open URL Contract
+// ============================================================
+
+export interface QuickPanelOpenUrlPayload {
+  url: string;
+  active?: boolean; // Open in foreground vs background tab
+  newWindow?: boolean;
+}
+
+export type QuickPanelOpenUrlResponse = { success: true } | { success: false; error: string };
+
+export interface QuickPanelOpenUrlMessage {
+  type: typeof BACKGROUND_MESSAGE_TYPES.QUICK_PANEL_OPEN_URL;
+  payload: QuickPanelOpenUrlPayload;
 }

@@ -4,7 +4,6 @@ import { NativeMessageType } from 'chrome-mcp-shared';
 import { preloadAgentTheme } from '../sidepanel/hooks/useAgentTheme';
 import App from './App';
 import './style.css';
-import '../sidepanel/styles/agent-chat.css';
 
 // Mount
 preloadAgentTheme().then(() => {

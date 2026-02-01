@@ -442,7 +442,7 @@ export function createTabsProvider(
     scopes: ['tabs'],
     includeInAll: true,
     priority: 50, // High priority for tab switching
-    maxResults: 50,
+    maxResults: 500, // Provider cap; UI requests 100 initially then loads more
     supportsEmptyQuery: true,
     search,
     getActions,

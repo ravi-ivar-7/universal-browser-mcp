@@ -618,7 +618,7 @@ const TimelineNarrativeStep: React.FC<{ item: any }> = ({ item }) => {
                 <div className="whitespace-pre-wrap">{item.text ?? ''}</div>
             </div>
             {item.isStreaming && (
-                <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-[var(--ac-accent)] ac-pulse" />
+                <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-[var(--ac-accent)] animate-pulse" />
             )}
         </div>
     );
@@ -751,7 +751,7 @@ const AgentTimelineItem: React.FC<{ item: any; isLast?: boolean }> = ({ item, is
                 </svg>
             ) : (
                 <span
-                    className={`absolute w-2 h-2 rounded-full transition-all duration-300 z-10 ${isStreaming ? 'ac-pulse scale-125' : ''}`}
+                    className={`absolute w-2 h-2 rounded-full transition-all duration-300 z-10 ${isStreaming ? 'animate-pulse scale-125' : ''}`}
                     style={{ left: '-21px', top: nodeTopOffset, backgroundColor: nodeColor, boxShadow: isStreaming ? 'var(--ac-timeline-node-pulse-shadow)' : 'none' }}
                 />
             )}

@@ -31,10 +31,10 @@
 import { createAgentBridge, type QuickPanelAgentBridge } from './core/agent-bridge';
 import {
   mountQuickPanelShadowHost,
-  mountQuickPanelAiChatPanel,
   type QuickPanelShadowHostManager,
-  type QuickPanelAiChatPanelManager,
 } from './ui';
+import { mountQuickPanelReact, type QuickPanelReactManager } from './ui/components/mount';
+import { type AgentThemeId } from '@/shared/theme/ThemeEngine';
 
 // ============================================================
 // Types
@@ -112,7 +112,7 @@ export function createQuickPanelController(
 
   // UI components (created on show, disposed on hide)
   let shadowHost: QuickPanelShadowHostManager | null = null;
-  let chatPanel: QuickPanelAiChatPanelManager | null = null;
+  let reactManager: QuickPanelReactManager | null = null;
 
   /**
    * Ensure agent bridge is initialized
@@ -128,13 +128,13 @@ export function createQuickPanelController(
    * Dispose current UI (keeps bridge alive for potential reuse)
    */
   function disposeUI(): void {
-    if (chatPanel) {
+    if (reactManager) {
       try {
-        chatPanel.dispose();
+        reactManager.unmount();
       } catch (err) {
-        console.warn(`${LOG_PREFIX} Error disposing chat panel:`, err);
+        console.warn(`${LOG_PREFIX} Error unmounting react app:`, err);
       }
-      chatPanel = null;
+      reactManager = null;
     }
 
     if (shadowHost) {
@@ -157,8 +157,7 @@ export function createQuickPanelController(
     }
 
     // Already visible
-    if (chatPanel && shadowHost?.getElements()) {
-      chatPanel.focusInput();
+    if (reactManager && shadowHost?.getElements()) {
       return;
     }
 
@@ -181,16 +180,13 @@ export function createQuickPanelController(
     // Ensure bridge is ready
     const bridge = ensureBridge();
 
-    // Create chat panel
-    chatPanel = mountQuickPanelAiChatPanel({
-      mount: elements.root,
-      agentBridge: bridge,
-      title: options.title,
-      subtitle: options.subtitle,
-      placeholder: options.placeholder,
-      autoFocus: true,
-      onRequestClose: () => hide(),
-    });
+    // Create React app
+    reactManager = mountQuickPanelReact(
+      elements.root,
+      bridge,
+      () => hide(),
+      elements.root.dataset.agentTheme as AgentThemeId || 'warm-editorial'
+    );
   }
 
   /**
@@ -218,7 +214,7 @@ export function createQuickPanelController(
    * Check if panel is currently visible
    */
   function isVisible(): boolean {
-    return chatPanel !== null && shadowHost?.getElements() !== null;
+    return reactManager !== null && shadowHost?.getElements() !== null;
   }
 
   /**
@@ -290,16 +286,8 @@ export type {
 export {
   // Shadow host
   mountQuickPanelShadowHost,
-  // Panel shell (unified container)
-  mountQuickPanelShell,
-  // AI Chat
-  mountQuickPanelAiChatPanel,
-  createQuickPanelMessageRenderer,
-  // Search UI
-  createSearchInput,
-  createQuickEntries,
-  // Styles
-  QUICK_PANEL_STYLES,
+  // React App
+  mountQuickPanelReact,
 } from './ui';
 
 export type {
@@ -307,23 +295,8 @@ export type {
   QuickPanelShadowHostElements,
   QuickPanelShadowHostManager,
   QuickPanelShadowHostOptions,
-  // Panel shell
-  QuickPanelShellElements,
-  QuickPanelShellManager,
-  QuickPanelShellOptions,
-  // AI Chat
-  QuickPanelAiChatPanelManager,
-  QuickPanelAiChatPanelOptions,
-  QuickPanelAiChatPanelState,
-  QuickPanelMessageRenderer,
-  QuickPanelMessageRendererOptions,
-  // Search input
-  SearchInputManager,
-  SearchInputOptions,
-  SearchInputState,
-  // Quick entries
-  QuickEntriesManager,
-  QuickEntriesOptions,
+  // React Manager
+  QuickPanelReactManager,
 } from './ui';
 
 // Search Engine
