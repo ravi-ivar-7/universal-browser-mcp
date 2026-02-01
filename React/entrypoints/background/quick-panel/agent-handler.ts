@@ -900,7 +900,7 @@ async function createSession(port: number, projectId?: string): Promise<string> 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      engineName: 'gemini', // Default engine
+      engineName: 'groq', // Default engine (better rate limits than gemini)
     })
   });
 

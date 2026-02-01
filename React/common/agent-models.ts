@@ -20,7 +20,7 @@ export interface ModelDefinition {
   supportedReasoningEfforts?: readonly CodexReasoningEffort[];
 }
 
-export type AgentCliType = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini';
+export type AgentCliType = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini' | 'groq';
 
 // ============================================================
 // Claude Models
@@ -236,6 +236,45 @@ export const GEMINI_MODELS: ModelDefinition[] = [
 export const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash';
 
 // ============================================================
+// Groq Models (via Groq Cloud - ultra-fast inference)
+// ============================================================
+
+export const GROQ_MODELS: ModelDefinition[] = [
+  {
+    id: 'llama-3.3-70b-versatile',
+    name: 'Llama 3.3 70B',
+    description: 'Best quality, fast inference (recommended)',
+    supportsImages: false,
+  },
+  {
+    id: 'llama-3.1-8b-instant',
+    name: 'Llama 3.1 8B Instant',
+    description: 'Ultra-fast, cost-efficient',
+    supportsImages: false,
+  },
+  {
+    id: 'mixtral-8x7b-32768',
+    name: 'Mixtral 8x7B',
+    description: 'Great for complex reasoning',
+    supportsImages: false,
+  },
+  {
+    id: 'gemma2-9b-it',
+    name: 'Gemma 2 9B',
+    description: 'Google Gemma via Groq',
+    supportsImages: false,
+  },
+  {
+    id: 'llama-3.2-90b-vision-preview',
+    name: 'Llama 3.2 90B Vision',
+    description: 'Vision-capable model',
+    supportsImages: true,
+  },
+];
+
+export const GROQ_DEFAULT_MODEL = 'llama-3.1-8b-instant';
+
+// ============================================================
 // Aggregated Definitions
 // ============================================================
 
@@ -246,6 +285,7 @@ export const CLI_MODEL_DEFINITIONS: Record<AgentCliType, ModelDefinition[]> = {
   qwen: QWEN_MODELS,
   glm: GLM_MODELS,
   gemini: GEMINI_MODELS,
+  groq: GROQ_MODELS,
 };
 
 export const CLI_DEFAULT_MODELS: Record<AgentCliType, string> = {
@@ -255,6 +295,7 @@ export const CLI_DEFAULT_MODELS: Record<AgentCliType, string> = {
   qwen: QWEN_DEFAULT_MODEL,
   glm: GLM_DEFAULT_MODEL,
   gemini: GEMINI_DEFAULT_MODEL,
+  groq: GROQ_DEFAULT_MODEL,
 };
 
 // ============================================================

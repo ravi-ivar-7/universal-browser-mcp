@@ -985,7 +985,7 @@ const AgentSessionListItem: React.FC<{
 
     const engineAbbrev = (session.engineName || '').slice(0, 2).toUpperCase() || 'AI';
     const engineColor = {
-        claude: '#c87941', codex: '#10a37f', cursor: '#8b5cf6', qwen: '#6366f1', glm: '#ef4444', gemini: '#4285f4'
+        claude: '#c87941', codex: '#10a37f', cursor: '#8b5cf6', qwen: '#6366f1', glm: '#ef4444', gemini: '#4285f4', groq: '#f97316'
     }[session.engineName] || '#6b7280';
 
     const displayPath = useMemo(() => {
@@ -1089,7 +1089,7 @@ export const AgentProjectMenu: React.FC<{
         const availableModels = getModelsForCli(effectiveCli);
         const showReasoningEffort = effectiveCli === 'codex';
         const showCcr = effectiveCli === 'claude';
-        const showChromeMcp = !effectiveCli || ['claude', 'codex', 'gemini'].includes(effectiveCli);
+        const showChromeMcp = !effectiveCli || ['claude', 'codex', 'gemini', 'groq'].includes(effectiveCli);
 
         const isModelSelectionDisabled = availableModels.length === 0;
 
@@ -1696,7 +1696,7 @@ export const AgentOpenProjectMenu: React.FC<{
 
 function getEngineColor(engineName: string): string {
     const colors: Record<string, string> = {
-        claude: '#c87941', codex: '#10a37f', cursor: '#8b5cf6', qwen: '#6366f1', glm: '#ef4444', gemini: '#4285f4'
+        claude: '#c87941', codex: '#10a37f', cursor: '#8b5cf6', qwen: '#6366f1', glm: '#ef4444', gemini: '#4285f4', groq: '#f97316'
     };
     return colors[engineName] || '#6b7280';
 }

@@ -100,7 +100,7 @@ export interface ClaudeManagementInfo {
  */
 export type ManagementInfoPersistCallback = (info: ClaudeManagementInfo) => Promise<void>;
 
-export type EngineName = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini';
+export type EngineName = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini' | 'groq';
 
 export interface EngineExecutionContext {
   /**

@@ -101,7 +101,7 @@ export interface ClaudeManagementInfo {
  * Callback to persist management information after SDK initialization.
  */
 export type ManagementInfoPersistCallback = (info: ClaudeManagementInfo) => Promise<void>;
-export type EngineName = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini';
+export type EngineName = 'claude' | 'codex' | 'cursor' | 'qwen' | 'glm' | 'gemini' | 'groq';
 export interface EngineExecutionContext {
     /**
      * Emit a realtime event to all connected clients for the current session.

@@ -1,6 +1,17 @@
 @import 'tailwindcss';
 
+/* Ensure full viewport height for flex layouts */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 @layer base {
+
 
   /* ============================================================
      AgentChat Theme System (Core Utilities)
