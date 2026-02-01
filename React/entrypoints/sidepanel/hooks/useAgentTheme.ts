@@ -3,15 +3,10 @@
  * Handles theme persistence and application.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { getThemeTokens, applyThemeTokens as applyTokensFromEngine, type ThemeTokens, type AgentThemeId } from '@/shared/theme/ThemeEngine';
 
-/** Available theme identifiers */
-export type AgentThemeId =
-    | 'warm-editorial'
-    | 'blueprint-architect'
-    | 'zen-journal'
-    | 'neo-pop'
-    | 'dark-console'
-    | 'swiss-grid';
+// Re-export for backwards compatibility
+export type { AgentThemeId } from '@/shared/theme/ThemeEngine';
 
 /** Storage key for persisting theme preference */
 const STORAGE_KEY_THEME = 'agentTheme';
@@ -27,6 +22,7 @@ const VALID_THEMES: AgentThemeId[] = [
     'neo-pop',
     'dark-console',
     'swiss-grid',
+    'glass-morphism',
 ];
 
 /** Theme display names for UI */
@@ -37,6 +33,7 @@ export const THEME_LABELS: Record<AgentThemeId, string> = {
     'neo-pop': 'Neo-Pop',
     'dark-console': 'Console',
     'swiss-grid': 'Swiss',
+    'glass-morphism': 'Glass',
 };
 
 export interface UseAgentTheme {
@@ -70,7 +67,7 @@ function getThemeFromDocument(): AgentThemeId {
     return isValidTheme(value) ? value : DEFAULT_THEME;
 }
 
-import { getThemeTokens, ThemeTokens } from './AgentThemeTokens';
+// Using shared theme engine (imported at top)
 
 /**
  * Apply theme tokens as CSS variables to an element (defaults to documentElement)
