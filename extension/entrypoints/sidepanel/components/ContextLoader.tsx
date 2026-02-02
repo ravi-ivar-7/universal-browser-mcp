@@ -74,8 +74,8 @@ const ContextLoader = ({
                 )}
 
 
-                {/* 2. Central Content Group */}
-                <g transform="translate(25, 25) scale(0.75)">
+                {/* 2. Central Content Group - Shifted Up and Scaled Down for clearance */}
+                <g transform="translate(25, 18) scale(0.72)">
 
 
 
@@ -138,7 +138,7 @@ const ContextLoader = ({
             <BrainCircuit
                 className="absolute w-12 h-12 text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]"
                 style={{
-                    top: '40%',
+                    top: '36%',
                     left: '50%',
                     transform: 'translate(-50%, -50%) rotate(90deg)'
                 }}
@@ -148,35 +148,35 @@ const ContextLoader = ({
             {/* Icon 1: Cloud - Top Left */}
             <Cloud
                 className="absolute w-4 h-4 text-cyan-400 drop-shadow-lg"
-                style={{ top: '55%', left: '25%', transform: 'translate(-50%, -50%)' }}
+                style={{ top: '51%', left: '25%', transform: 'translate(-50%, -50%)' }}
                 strokeWidth={2.5}
             />
 
             {/* Icon 2: Lock - Center */}
             <Lock
                 className="absolute w-6 h-6 text-pink-500 drop-shadow-xl"
-                style={{ top: '66%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                style={{ top: '62%', left: '50%', transform: 'translate(-50%, -50%)' }}
                 strokeWidth={2.5}
             />
 
             {/* Icon 3: Settings - Top Right */}
             <Settings
                 className="absolute w-4 h-4 text-purple-400 drop-shadow-lg"
-                style={{ top: '55%', left: '75%', transform: 'translate(-50%, -50%)' }}
+                style={{ top: '51%', left: '75%', transform: 'translate(-50%, -50%)' }}
                 strokeWidth={2.5}
             />
 
             {/* Icon 4: Folder - Bottom Left */}
             <Folder
                 className="absolute w-4 h-4 text-amber-400 drop-shadow-lg"
-                style={{ top: '76%', left: '32%', transform: 'translate(-50%, -50%)' }}
+                style={{ top: '71%', left: '32%', transform: 'translate(-50%, -50%)' }}
                 strokeWidth={2.5}
             />
 
             {/* Icon 5: Globe - Bottom Right */}
             <Globe
                 className="absolute w-4 h-4 text-emerald-400 drop-shadow-lg"
-                style={{ top: '76%', left: '68%', transform: 'translate(-50%, -50%)' }}
+                style={{ top: '71%', left: '68%', transform: 'translate(-50%, -50%)' }}
                 strokeWidth={2.5}
             />
         </div>
