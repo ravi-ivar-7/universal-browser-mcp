@@ -12,6 +12,16 @@ import { initQuickPanelTabsHandler } from './quick-panel/tabs-handler';
 import { initQuickPanelBookmarksHandler } from './quick-panel/bookmarks-handler';
 import { initQuickPanelHistoryHandler } from './quick-panel/history-handler';
 import { initQuickPanelNavigationHandler } from './quick-panel/navigation-handler';
+import { initRecordReplayListeners } from './record-replay';
+
+// Record-Replay V3 (new engine)
+import { bootstrapV3 } from './record-replay-v3/bootstrap';
+
+/**
+ * Feature flag for RR-V3
+ * Set to true to enable the new Record-Replay V3 engine
+ */
+const ENABLE_RR_V3 = true;
 
 /**
  * Background script entry point
@@ -45,6 +55,20 @@ export default defineBackground(() => {
   initQuickPanelBookmarksHandler();
   initQuickPanelHistoryHandler();
   initQuickPanelNavigationHandler();
+
+  // Record & Replay V1/V2: recording, playback, triggers, schedules
+  initRecordReplayListeners();
+
+  // Record & Replay V3 (new engine)
+  if (ENABLE_RR_V3) {
+    bootstrapV3()
+      .then((runtime) => {
+        console.log(`[RR-V3] Bootstrap complete, ownerId: ${runtime.ownerId}`);
+      })
+      .catch((error) => {
+        console.error('[RR-V3] Bootstrap failed:', error);
+      });
+  }
 
   // Conditionally initialize semantic similarity engine if model cache exists
   initializeSemanticEngineIfCached()

@@ -14,7 +14,11 @@ import {
     ElementMarkerIcon,
     ChevronRightIcon,
     DocsIcon,
-    GuideIcon
+    GuideIcon,
+    RecordIcon,
+    StopIcon,
+    WorkflowIcon,
+    EditIcon
 } from './components/icons';
 
 export default function App() {
@@ -137,6 +141,53 @@ export default function App() {
         } catch { /* ignore */ }
     };
 
+    // Record & Replay state and handlers
+    const [rrRecording, setRrRecording] = useState(false);
+    const [comingSoonToast, setComingSoonToast] = useState<{ show: boolean; feature: string }>({ show: false, feature: '' });
+
+    const showComingSoonToast = (feature: string) => {
+        setComingSoonToast({ show: true, feature });
+        setTimeout(() => {
+            setComingSoonToast({ show: false, feature: '' });
+        }, 2000);
+    };
+
+    const startRecording = async () => {
+        if (rrRecording) return;
+        try {
+            const res: any = await chrome.runtime.sendMessage({
+                type: BACKGROUND_MESSAGE_TYPES.RR_START_RECORDING,
+                meta: { name: 'New Recording' },
+            });
+            setRrRecording(!!(res && res.success));
+        } catch (e) {
+            console.error('Failed to start recording:', e);
+            setRrRecording(false);
+        }
+    };
+
+    const stopRecording = async () => {
+        if (!rrRecording) return;
+        try {
+            const res: any = await chrome.runtime.sendMessage({
+                type: BACKGROUND_MESSAGE_TYPES.RR_STOP_RECORDING,
+            });
+            setRrRecording(false);
+        } catch (e) {
+            console.error('Failed to stop recording:', e);
+            setRrRecording(false);
+        }
+    };
+
+    const toggleWebEditor = async () => {
+        // Web Editor was excluded from this extension
+        showComingSoonToast('Web Editor');
+    };
+
+    const openWorkflowSidepanel = async () => {
+        await openSidepanelAndClose('workflows');
+    };
+
     const getStatusText = () => {
         if (nativeConnectionStatus === 'connected') {
             if (serverStatus.isRunning) {
@@ -229,8 +280,8 @@ export default function App() {
                                 {/* Primary Connect Button */}
                                 <button
                                     className={`w-full p-5 flex items-center justify-center gap-2.5 font-black text-[15px] transition-all active:scale-[0.98] ${nativeConnectionStatus === 'connected'
-                                            ? 'bg-[#ef4444] hover:bg-[#dc2626] text-white'
-                                            : 'bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-lg shadow-[#dbeafe]'
+                                        ? 'bg-[#ef4444] hover:bg-[#dc2626] text-white'
+                                        : 'bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-lg shadow-[#dbeafe]'
                                         } disabled:opacity-50`}
                                     disabled={isConnecting}
                                     onClick={testNativeConnection}
@@ -253,13 +304,33 @@ export default function App() {
                             <h2 className="text-[11px] font-[900] text-[#94a3b8] uppercase tracking-widest pl-1">Power Tools</h2>
                             <div className="flex gap-4">
                                 <button
+                                    className="p-4 bg-white border border-[#e2e8f0] rounded-[24px] text-[#ef4444] hover:bg-[#fef2f2] hover:border-[#fecaca] transition-all shadow-sm active:scale-90 group relative"
+                                    onClick={startRecording}
+                                    title="Start Recording"
+                                >
+                                    <RecordIcon className="w-7 h-7 group-hover:scale-110 transition-transform" recording={rrRecording} />
+                                </button>
+                                <button
+                                    className="p-4 bg-white border border-[#e2e8f0] rounded-[24px] text-[#64748b] hover:bg-[#f8fafc] hover:border-[#cbd5e1] transition-all shadow-sm active:scale-90 group"
+                                    onClick={stopRecording}
+                                    title="Stop Recording"
+                                >
+                                    <StopIcon className="w-7 h-7 group-hover:scale-110 transition-transform" />
+                                </button>
+                                <button
+                                    className="p-4 bg-white border border-[#e2e8f0] rounded-[24px] text-[#3b82f6] hover:bg-[#eff6ff] hover:border-[#bfdbfe] transition-all shadow-sm active:scale-90 group"
+                                    onClick={toggleWebEditor}
+                                    title="Toggle Web Editor Mode"
+                                >
+                                    <EditIcon className="w-7 h-7 group-hover:scale-110 transition-transform" />
+                                </button>
+                                <button
                                     className="p-4 bg-white border border-[#e2e8f0] rounded-[24px] text-[#10b981] hover:bg-[#f0fdf4] hover:border-[#bbf7d0] transition-all shadow-sm active:scale-90 group"
                                     onClick={toggleElementMarker}
                                     title="Open Element Marker"
                                 >
                                     <MarkerIcon className="w-7 h-7 group-hover:scale-110 transition-transform" />
                                 </button>
-                                {/* Add more icons here if needed */}
                             </div>
                         </section>
 
@@ -269,12 +340,13 @@ export default function App() {
                             <div className="bg-white border border-[#e2e8f0] rounded-[24px] overflow-hidden shadow-sm">
                                 {[
                                     { id: 'agent', icon: <AgentIcon className="w-5 h-5" />, title: 'AI Assistant', desc: 'Agent Control Center', color: '#3b82f6', bg: 'bg-[#3b82f6]', onClick: () => openSidepanelAndClose('agent-chat') },
+                                    { id: 'workflow', icon: <WorkflowIcon className="w-5 h-5" />, title: 'Workflows', desc: 'Record & Replay Automation', color: '#f59e0b', bg: 'bg-[#f59e0b]', onClick: openWorkflowSidepanel },
                                     { id: 'marker', icon: <ElementMarkerIcon className="w-5 h-5" />, title: 'Selectors', desc: 'Saved Element Data', color: '#10b981', bg: 'bg-[#10b981]', onClick: () => openSidepanelAndClose('element-markers') },
                                     { id: 'model', icon: <LocalModelIcon className="w-5 h-5" />, title: 'Local Models', desc: 'Semantic Search Engine', color: '#8b5cf6', bg: 'bg-[#8b5cf6]', onClick: () => setCurrentView('local-model') }
-                                ].map((item, idx) => (
+                                ].map((item, idx, arr) => (
                                     <button
                                         key={item.id}
-                                        className={`w-full p-5 flex items-center gap-5 hover:bg-[#f8fafc] transition-all ${idx !== 2 ? 'border-b border-[#f1f5f9]' : ''}`}
+                                        className={`w-full p-5 flex items-center gap-5 hover:bg-[#f8fafc] transition-all ${idx !== arr.length - 1 ? 'border-b border-[#f1f5f9]' : ''}`}
                                         onClick={item.onClick}
                                     >
                                         <div className={`w-11 h-11 rounded-[14px] flex items-center justify-center text-white shrink-0 ${item.bg} shadow-md`}>

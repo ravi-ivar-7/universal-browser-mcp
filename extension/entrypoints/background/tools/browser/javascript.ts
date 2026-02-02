@@ -232,11 +232,11 @@ async function executeViaCdp(
           expression,
           returnByValue: true,
           awaitPromise: true,
-          // CDP 内置超时（毫秒），与外层 withTimeout 双重保障
+          // CDP built-in timeout (ms), double protection with withTimeout
           timeout: options.timeoutMs,
         })) as CDPEvaluateResult;
       }),
-      // 外层超时稍长，给 CDP 一点余量处理超时响应
+      // Outer timeout is slightly longer to give CDP some room to handle timeout responses
       options.timeoutMs + 1000,
     );
 
@@ -314,7 +314,7 @@ async function executeViaScripting(
         try {
           // Use AsyncFunction constructor to support top-level await
 
-          const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+          const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
           const fn = new AsyncFunction(userCode);
           const value = await fn();
           return { ok: true, value };

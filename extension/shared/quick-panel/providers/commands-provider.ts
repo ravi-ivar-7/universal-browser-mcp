@@ -91,8 +91,8 @@ export function createCommandsProvider(): SearchProvider<CommandSearchResultData
         id,
         name,
         icon,
-        scopes: ['commands'],
-        includeInAll: false, // Don't pollute 'all' scope with commands unless very specific match? Or maybe let user enable it.
+        scopes: ['all'],
+        includeInAll: true, // Include commands in 'all' scope
         priority: 100,
         maxResults: 500, // Provider cap; UI requests 100 initially then loads more
         supportsEmptyQuery: true,

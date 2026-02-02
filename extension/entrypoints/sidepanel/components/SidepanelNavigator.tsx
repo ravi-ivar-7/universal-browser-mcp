@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useFloatingDrag } from '../hooks/useFloatingDrag';
 
-type TabType = 'element-markers' | 'agent-chat';
+type TabType = 'element-markers' | 'agent-chat' | 'workflows';
 
 const BUTTON_SIZE = 48;
 const CLAMP_MARGIN = 16;
@@ -55,8 +55,8 @@ export const SidepanelNavigator: React.FC<SidepanelNavigatorProps> = ({ activeTa
             <button
                 ref={triggerRef}
                 className={`w-12 h-12 rounded-[16px] flex items-center justify-center shadow-xl transition-all ${isOpen
-                        ? 'bg-[#0f172a] text-white rotate-90 scale-110'
-                        : 'bg-white text-[#0f172a] hover:bg-[#f8fafc] border border-[#e2e8f0]'
+                    ? 'bg-[#0f172a] text-white rotate-90 scale-110'
+                    : 'bg-white text-[#0f172a] hover:bg-[#f8fafc] border border-[#e2e8f0]'
                     }`}
                 onClick={handleTriggerClick}
                 onDoubleClick={handleReset}
@@ -88,8 +88,8 @@ export const SidepanelNavigator: React.FC<SidepanelNavigatorProps> = ({ activeTa
                         <div className="flex flex-col gap-1">
                             <button
                                 className={`flex items-center gap-3 p-3 rounded-[16px] transition-all text-left ${activeTab === 'agent-chat'
-                                        ? 'bg-[#eff6ff] text-[#2563eb]'
-                                        : 'hover:bg-[#f8fafc] text-[#64748b] hover:text-[#0f172a]'
+                                    ? 'bg-[#eff6ff] text-[#2563eb]'
+                                    : 'hover:bg-[#f8fafc] text-[#64748b] hover:text-[#0f172a]'
                                     }`}
                                 onClick={(e) => selectTab('agent-chat', e)}
                             >
@@ -112,9 +112,35 @@ export const SidepanelNavigator: React.FC<SidepanelNavigatorProps> = ({ activeTa
                             </button>
 
                             <button
+                                className={`flex items-center gap-3 p-3 rounded-[16px] transition-all text-left ${activeTab === 'workflows'
+                                    ? 'bg-[#fffbeb] text-[#f59e0b]'
+                                    : 'hover:bg-[#f8fafc] text-[#64748b] hover:text-[#0f172a]'
+                                    }`}
+                                onClick={(e) => selectTab('workflows', e)}
+                            >
+                                <div className={`w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0 ${activeTab === 'workflows' ? 'bg-[#f59e0b] text-white shadow-md shadow-amber-100' : 'bg-[#f1f5f9]'}`}>
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 7h4M10 17h4M7 10v4M17 10v4" />
+                                    </svg>
+                                </div>
+                                <div className="flex-1 overflow-hidden">
+                                    <div className="text-[14px] font-[900] truncate tracking-tight">Workflows</div>
+                                    <div className="text-[11px] font-medium opacity-60 truncate">Record & Replay</div>
+                                </div>
+                                {activeTab === 'workflows' && (
+                                    <div className="w-5 h-5 bg-[#f59e0b] rounded-full flex items-center justify-center text-white shrink-0 shadow-sm shadow-amber-200">
+                                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="3.5">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                )}
+                            </button>
+
+                            <button
                                 className={`flex items-center gap-3 p-3 rounded-[16px] transition-all text-left ${activeTab === 'element-markers'
-                                        ? 'bg-[#eff6ff] text-[#2563eb]'
-                                        : 'hover:bg-[#f8fafc] text-[#64748b] hover:text-[#0f172a]'
+                                    ? 'bg-[#eff6ff] text-[#2563eb]'
+                                    : 'hover:bg-[#f8fafc] text-[#64748b] hover:text-[#0f172a]'
                                     }`}
                                 onClick={(e) => selectTab('element-markers', e)}
                             >
@@ -142,3 +168,4 @@ export const SidepanelNavigator: React.FC<SidepanelNavigatorProps> = ({ activeTa
         </div>
     );
 };
+

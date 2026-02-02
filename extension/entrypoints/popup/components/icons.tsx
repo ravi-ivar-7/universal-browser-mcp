@@ -93,3 +93,30 @@ export const CheckIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
     </svg>
 );
+
+export const RecordIcon: React.FC<IconProps & { recording?: boolean }> = ({ className = "w-5 h-5", recording = false }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="5" fill={recording ? "currentColor" : "none"} className={recording ? "animate-pulse" : ""} />
+    </svg>
+);
+
+export const StopIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+        <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+);
+
+export const WorkflowIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10 7h4M10 17h4M7 10v4M17 10v4" />
+    </svg>
+);
+
+export const EditIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+);
+

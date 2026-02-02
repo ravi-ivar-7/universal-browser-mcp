@@ -1,13 +1,15 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
-import { NativeMessageType } from 'chrome-mcp-shared';
+import { NativeMessageType, topoOrder, EDGE_LABELS } from 'chrome-mcp-shared';
 import { SidepanelNavigator } from './components/SidepanelNavigator';
 import { useAgentTheme, preloadAgentTheme } from './hooks/useAgentTheme';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 import type { ElementMarker, UpsertMarkerRequest } from '@/common/element-marker-types';
+import type { Flow } from '@/entrypoints/background/record-replay/types';
 
 import { AgentChat } from './components/AgentChat';
 import ContextLoader from './components/ContextLoader';
+import { DebuggerPanel } from './components/rr-v3';
 
 // Import styles (only keeping tailwind if we are doing inline-only)
 import '../styles/tailwind.css';
@@ -20,7 +22,7 @@ void chrome.runtime.sendMessage({ type: NativeMessageType.ENSURE_NATIVE }).catch
 
 function App() {
     const { theme: currentTheme, initTheme } = useAgentTheme();
-    const [activeTab, setActiveTab] = useState<'element-markers' | 'agent-chat'>('agent-chat');
+    const [activeTab, setActiveTab] = useState<'element-markers' | 'agent-chat' | 'workflows'>('agent-chat');
 
     // Element markers state
     const [currentPageUrl, setCurrentPageUrl] = useState('');
@@ -38,20 +40,169 @@ function App() {
     const [markerSearch, setMarkerSearch] = useState('');
     const [markerEditorOpen, setMarkerEditorOpen] = useState(false);
 
+    // Workflows logic
+    const [flows, setFlows] = useState<Flow[]>([]);
+    const [isFlowsLoading, setIsFlowsLoading] = useState(false);
+    const [activeRunIds, setActiveRunIds] = useState<Record<string, string>>({});
+    const [expandingFlows, setExpandingFlows] = useState<Record<string, boolean>>({});
+    const [flowPaused, setFlowPaused] = useState<Record<string, boolean>>({});
+    const [flowLogs, setFlowLogs] = useState<Record<string, any[]>>({});
+    const [activeRunFlow, setActiveRunFlow] = useState<Flow | null>(null); // Keep for legacy or single-focus if needed
+    const loadFlows = useCallback(async () => {
+        setIsFlowsLoading(true);
+        try {
+            const res: any = await chrome.runtime.sendMessage({
+                type: BACKGROUND_MESSAGE_TYPES.RR_LIST_FLOWS,
+            });
+            if (res?.success) {
+                setFlows(res.flows || []);
+            }
+        } catch (e) {
+            console.error('Failed to load flows:', e);
+        } finally {
+            setIsFlowsLoading(false);
+        }
+    }, []);
+
+    const handleDeleteFlow = async (flow: Flow) => {
+        if (!confirm(`Are you sure you want to delete workflow "${flow.name || 'Untitled'}"?`)) return;
+        try {
+            const res: any = await chrome.runtime.sendMessage({
+                type: BACKGROUND_MESSAGE_TYPES.RR_DELETE_FLOW,
+                flowId: flow.id,
+            });
+            if (res?.success) {
+                loadFlows();
+            }
+        } catch (e) {
+            console.error('Failed to delete flow:', e);
+        }
+    };
+
+    const handleRunFlow = async (flowId: string) => {
+        try {
+            const flow = flows.find(f => f.id === flowId);
+            setFlowLogs(prev => ({ ...prev, [flowId]: [] }));
+            setExpandingFlows(prev => ({ ...prev, [flowId]: true }));
+            setFlowPaused(prev => ({ ...prev, [flowId]: false }));
+
+            const res: any = await chrome.runtime.sendMessage({
+                type: BACKGROUND_MESSAGE_TYPES.RR_RUN_FLOW,
+                flowId,
+            });
+            if (res?.success && res.result?.runId) {
+                setActiveRunIds(prev => ({ ...prev, [flowId]: res.result.runId }));
+            }
+        } catch (e) {
+            console.error('Failed to run flow:', e);
+        }
+    };
+
+    const handleStopRun = async (flowId: string) => {
+        const runId = activeRunIds[flowId];
+        if (!runId) return;
+        try {
+            await chrome.runtime.sendMessage({
+                type: BACKGROUND_MESSAGE_TYPES.RR_STOP_RUN,
+                runId,
+            });
+        } catch (e) {
+            console.error('Failed to stop run:', e);
+        }
+    };
+
+    const handlePauseRun = async (flowId: string) => {
+        const runId = activeRunIds[flowId];
+        if (!runId) return;
+        try {
+            await chrome.runtime.sendMessage({
+                type: BACKGROUND_MESSAGE_TYPES.RR_PAUSE_RUN,
+                runId,
+            });
+            setFlowPaused(prev => ({ ...prev, [flowId]: true }));
+        } catch (e) {
+            console.error('Failed to pause run:', e);
+        }
+    };
+
+    const handleResumeRun = async (flowId: string) => {
+        const runId = activeRunIds[flowId];
+        if (!runId) return;
+        try {
+            await chrome.runtime.sendMessage({
+                type: BACKGROUND_MESSAGE_TYPES.RR_RESUME_RUN,
+                runId,
+            });
+            setFlowPaused(prev => ({ ...prev, [flowId]: false }));
+        } catch (e) {
+            console.error('Failed to resume run:', e);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'workflows') {
+            loadFlows();
+        }
+    }, [activeTab, loadFlows]);
+
+    useEffect(() => {
+        const listener = (message: any) => {
+            if (message.type === BACKGROUND_MESSAGE_TYPES.RR_FLOWS_CHANGED) {
+                loadFlows();
+            }
+            if (message.type === BACKGROUND_MESSAGE_TYPES.RR_REPLAY_EVENT) {
+                const fId = message.flowId;
+                if (fId) {
+                    if (message.runId) {
+                        setActiveRunIds(prev => ({ ...prev, [fId]: message.runId }));
+                    }
+                    setFlowLogs(prev => ({
+                        ...prev,
+                        [fId]: [...(prev[fId] || []), message.entry]
+                    }));
+                }
+            }
+        };
+        chrome.runtime.onMessage.addListener(listener);
+        return () => chrome.runtime.onMessage.removeListener(listener);
+    }, [loadFlows]);
+
     // Initialize
     useEffect(() => {
         initTheme();
+
+        // Sync active runs from background
+        chrome.runtime.sendMessage({ type: BACKGROUND_MESSAGE_TYPES.RR_GET_ACTIVE_RUNS }, (res) => {
+            if (res?.success && res.runs) {
+                const runIds: Record<string, string> = {};
+                const expanded: Record<string, boolean> = {};
+                const paused: Record<string, boolean> = {};
+
+                res.runs.forEach((r: any) => {
+                    runIds[r.flowId] = r.runId;
+                    expanded[r.flowId] = true;
+                    paused[r.flowId] = !!r.paused;
+                });
+
+                setActiveRunIds(runIds);
+                setExpandingFlows(expanded);
+                setFlowPaused(paused);
+            }
+        });
+
         const params = new URLSearchParams(window.location.search);
         const tabParam = params.get('tab');
         if (tabParam === 'element-markers') {
             setActiveTab('element-markers');
         } else if (tabParam === 'agent-chat') {
             setActiveTab('agent-chat');
+        } else if (tabParam === 'workflows') {
+            setActiveTab('workflows');
         }
     }, [initTheme]);
 
     // Handle Tab Change
-    const handleTabChange = useCallback((tab: 'element-markers' | 'agent-chat') => {
+    const handleTabChange = useCallback((tab: 'element-markers' | 'agent-chat' | 'workflows') => {
         setActiveTab(tab);
         const url = new URL(window.location.href);
         url.searchParams.set('tab', tab);
@@ -341,52 +492,303 @@ function App() {
                 <AgentChat />
             </div>
 
-            {/* Element Markers Tab */}
-            <div className={`h-full overflow-y-auto ${activeTab === 'element-markers' ? 'block' : 'hidden'} bg-[#f8fafc]`}>
+            {/* Workflows Tab */}
+            <div className={`h-full overflow-y-auto ${activeTab === 'workflows' ? 'block' : 'hidden'} bg-[#f8fafc]`}>
                 <div className="px-6 py-8 pb-32">
-                    <header className="mb-8 flex justify-between items-end">
+                    <div className="flex items-center justify-between mb-8">
                         <div>
-                            <h1 className="text-[24px] font-[900] text-[#0f172a] tracking-tight leading-none mb-1 uppercase">Markers</h1>
-                            <p className="text-[12px] font-black text-[#94a3b8] uppercase tracking-widest">Page Interaction Hub</p>
+                            <h1 className="text-[24px] font-[900] text-[#0f172a] tracking-tight leading-none mb-1 uppercase">Workflows</h1>
+                            <p className="text-[12px] font-bold text-[#94a3b8] uppercase tracking-tight opacity-70">Record & Replay Automation</p>
                         </div>
-                        <button
-                            className="bg-[#2563eb] text-white px-5 py-2.5 rounded-[12px] font-black text-[13px] hover:bg-[#1d4ed8] shadow-lg shadow-blue-100 transition-all active:scale-95 flex items-center gap-2"
-                            onClick={() => openMarkerEditor()}
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                            </svg>
-                            Add New
-                        </button>
-                    </header>
-
-                    <div className="mb-8 relative group">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94a3b8] transition-colors group-focus-within:text-[#2563eb]">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </div>
-                        <input
-                            value={markerSearch}
-                            onChange={(e) => setMarkerSearch(e.target.value)}
-                            className="w-full bg-white border-2 border-[#f1f5f9] rounded-[20px] pl-11 pr-12 py-3.5 text-[14px] font-bold text-[#1e293b] outline-none focus:border-[#3b82f6] focus:ring-4 focus:ring-blue-50 transition-all shadow-sm"
-                            placeholder="Search names, selectors, or domains..."
-                            type="text"
-                        />
-                        {markerSearch && (
-                            <button
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#ef4444] transition-colors"
-                                onClick={() => setMarkerSearch('')}
-                            >
-                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
+                        {flows.length > 0 && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const res: any = await chrome.runtime.sendMessage({
+                                                type: BACKGROUND_MESSAGE_TYPES.RR_START_RECORDING,
+                                                meta: { name: 'New Recording' },
+                                            });
+                                            if (res?.success) window.close();
+                                        } catch (e) { }
+                                    }}
+                                    className="px-4 py-2.5 rounded-[12px] bg-[#f59e0b] text-white font-black text-[12px] uppercase tracking-tight shadow-md shadow-[#fef3c7] hover:bg-[#d97706] transition-all flex items-center gap-2"
+                                >
+                                    <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                                    New Recording
+                                </button>
+                                <button
+                                    onClick={loadFlows}
+                                    disabled={isFlowsLoading}
+                                    className="p-2.5 rounded-[12px] bg-white border border-[#e2e8f0] text-[#64748b] hover:text-[#0f172a] hover:border-[#cbd5e1] transition-all shadow-sm disabled:opacity-50"
+                                >
+                                    <svg className={`w-4 h-4 ${isFlowsLoading ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                        <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </button>
+                            </div>
                         )}
                     </div>
 
-                    {/* Modal */}
-                    {markerEditorOpen && (
+                    {flows.length > 0 ? (
+                        <div className="space-y-4">
+                            {flows.sort((a, b) => new Date(b.meta?.updatedAt || 0).getTime() - new Date(a.meta?.updatedAt || 0).getTime()).map(flow => {
+                                const isActive = !!expandingFlows[flow.id];
+                                const currentLogs = flowLogs[flow.id] || [];
+                                const isCompleted = currentLogs.some(l => l.stepId === 'log_run_end' && l.status === 'success');
+                                const isFailed = currentLogs.some(l => l.status === 'failed');
+
+                                return (
+                                    <div key={flow.id} className={`group bg-white rounded-[24px] border ${isActive ? 'border-[#f59e0b] shadow-xl shadow-amber-50' : 'border-[#f1f5f9]'} p-5 hover:shadow-lg transition-all duration-300 overflow-hidden`}>
+                                        <div className="flex items-start justify-between">
+                                            <div className="min-w-0 flex-1">
+                                                <h3 className="text-[16px] font-[900] text-[#0f172a] mb-1 truncate tracking-tight">{flow.name || 'Untitled Recording'}</h3>
+                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                    <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-full border ${isActive ? 'bg-[#f59e0b] text-white border-[#f59e0b]' : 'bg-[#fffbeb] text-[#f59e0b] border-[#fef3c7]'}`}>
+                                                        {isActive ? (isFailed ? 'Failed' : isCompleted ? 'Completed' : 'Running') : `${flow.nodes?.length || 0} Steps`}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-tighter">
+                                                        {new Date(flow.meta?.updatedAt || 0).toLocaleDateString()}
+                                                    </span>
+                                                    {flow.meta?.domain && (
+                                                        <span className="text-[10px] font-bold text-[#64748b] truncate max-w-[120px] opacity-60">
+                                                            {flow.meta.domain}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 translate-x-2 group-hover:translate-x-0 transition-all">
+                                                {isActive && !isCompleted && !isFailed ? (
+                                                    <div className="flex items-center gap-1.5">
+                                                        {flowPaused[flow.id] ? (
+                                                            <button
+                                                                className="w-9 h-9 flex items-center justify-center rounded-[12px] bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+                                                                onClick={(e) => { e.stopPropagation(); handleResumeRun(flow.id); }}
+                                                                title="Resume Workflow"
+                                                            >
+                                                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                                                    <path d="M8 5v14l11-7z" />
+                                                                </svg>
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                className="w-9 h-9 flex items-center justify-center rounded-[12px] bg-amber-500 text-white hover:bg-amber-600 transition-all"
+                                                                onClick={(e) => { e.stopPropagation(); handlePauseRun(flow.id); }}
+                                                                title="Pause Workflow"
+                                                            >
+                                                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                                                    <rect x="7" y="6" width="3" height="12" />
+                                                                    <rect x="14" y="6" width="3" height="12" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            className="w-9 h-9 flex items-center justify-center rounded-[12px] bg-[#ef4444] text-white hover:bg-[#dc2626] transition-all"
+                                                            onClick={(e) => { e.stopPropagation(); handleStopRun(flow.id); }}
+                                                            title="Stop Workflow"
+                                                        >
+                                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                                                <rect x="6" y="6" width="12" height="12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            className="w-9 h-9 flex items-center justify-center rounded-[12px] bg-[#f59e0b] text-white hover:bg-[#d97706] transition-all shadow-md shadow-[#fef3c7]"
+                                                            onClick={(e) => { e.stopPropagation(); handleRunFlow(flow.id); }}
+                                                            title="Run Workflow"
+                                                        >
+                                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                                                <path d="M8 5v14l11-7z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            className="w-9 h-9 flex items-center justify-center rounded-[12px] bg-white border border-[#fee2e2] text-[#ef4444] hover:bg-[#fef2f2] hover:border-[#fecaca] transition-all"
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteFlow(flow); }}
+                                                            title="Delete Workflow"
+                                                        >
+                                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                                                <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" />
+                                                            </svg>
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {isActive && (
+                                            <div className="mt-6 border-t border-slate-100 pt-6 animate-in slide-in-from-top-4 duration-500">
+                                                {/* Live Execution Feed */}
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="text-[11px] font-[900] text-[#64748b] uppercase tracking-widest">Live Execution Feed</h4>
+                                                        {flowPaused[flow.id] && (
+                                                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 text-[9px] font-black uppercase animate-pulse">
+                                                                <div className="w-1 h-1 rounded-full bg-amber-600" />
+                                                                Paused
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            onClick={() => setExpandingFlows(prev => ({ ...prev, [flow.id]: false }))}
+                                                            className="text-[10px] font-bold text-[#94a3b8] hover:text-[#0f172a] transition-all uppercase tracking-tight"
+                                                        >
+                                                            Clear
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 ac-scroll">
+                                                    {(() => {
+                                                        const defaultEdges = (flow.edges || []).filter(e => !e.label || e.label === EDGE_LABELS.DEFAULT);
+                                                        const orderedNodes = topoOrder(flow.nodes || [], defaultEdges as any);
+                                                        const execNodes = orderedNodes.filter(n => n.type !== 'trigger');
+
+                                                        return execNodes.map((node, idx) => {
+                                                            const log = currentLogs.find(l => l.stepId === node.id);
+                                                            const isCurrent = !isCompleted && !isFailed && !log && (idx === 0 || currentLogs.some(l => {
+                                                                const nodeIndex = execNodes.findIndex(n => n.id === l.stepId);
+                                                                return nodeIndex === idx - 1;
+                                                            }));
+                                                            const isPaused = isCurrent && flowPaused[flow.id];
+                                                            const isDone = !!log && log.status === 'success';
+
+                                                            return (
+                                                                <div key={node.id} className="flex gap-4">
+                                                                    <div className="flex flex-col items-center">
+                                                                        <div className="relative">
+                                                                            {isCurrent && (
+                                                                                <div className={`absolute -left-1.5 top-1.5 w-3 h-3 rounded-full ${isPaused ? 'bg-amber-400' : 'bg-[#3b82f6]'} opacity-20 animate-ping`} />
+                                                                            )}
+                                                                            <div className={`relative z-10 w-2 h-2 rounded-full border-2 ${log?.status === 'success' ? 'bg-[#22c55e] border-[#22c55e]' :
+                                                                                log?.status === 'failed' ? 'bg-[#ef4444] border-[#ef4444]' :
+                                                                                    isPaused ? 'bg-amber-500 border-amber-500' :
+                                                                                        isCurrent ? 'bg-[#3b82f6] border-[#3b82f6]' :
+                                                                                            'bg-white border-[#e2e8f0]'
+                                                                                }`} />
+                                                                        </div>
+                                                                        {idx < execNodes.length - 1 && <div className="w-[2px] flex-1 bg-slate-100 my-1" />}
+                                                                    </div>
+                                                                    <div className="flex-1 pb-4">
+                                                                        <div className="flex items-center justify-between mb-0.5">
+                                                                            <span className={`text-[11px] font-black uppercase tracking-tight ${isCurrent ? 'text-blue-600' : 'text-slate-700'}`}>
+                                                                                {node.type}
+                                                                            </span>
+                                                                            {log && (
+                                                                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${log.status === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                                                                                    log.status === 'failed' ? 'bg-red-50 text-red-600' :
+                                                                                        'bg-slate-50 text-slate-500'
+                                                                                    }`}>
+                                                                                    {log.status}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <p className={`text-[12px] font-bold leading-tight ${isCurrent ? 'text-slate-800' : 'text-slate-500'}`}>
+                                                                            {log ? log.message : (isCurrent ? 'Executing...' : 'Pending')}
+                                                                        </p>
+                                                                        {log?.screenshotBase64 && (
+                                                                            <div className="mt-2 rounded-lg border border-slate-200 overflow-hidden shadow-sm max-w-[140px]">
+                                                                                <img src={`data:image/png;base64,${log.screenshotBase64}`} alt="Result" className="w-full h-auto" />
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-[32px] border border-[#f1f5f9] p-8 shadow-sm text-center">
+                            <div className="w-16 h-16 bg-[#fffbeb] rounded-[20px] flex items-center justify-center mx-auto mb-6">
+                                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#f59e0b" strokeWidth="2.5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-[18px] font-[900] text-[#0f172a] mb-2 tracking-tight">No Workflows Recorded</h3>
+                            <p className="text-[14px] font-bold text-[#94a3b8] leading-relaxed mb-8">
+                                Automate browser tasks by recording your actions. Recorded workflows will appear here.
+                            </p>
+                            <button
+                                className="bg-[#f59e0b] text-white px-8 py-3.5 rounded-[18px] font-black text-[14px] shadow-lg shadow-amber-100 hover:bg-[#d97706] active:scale-95 transition-all flex items-center gap-3 uppercase tracking-tight mx-auto"
+                                onClick={async () => {
+                                    try {
+                                        const res: any = await chrome.runtime.sendMessage({
+                                            type: BACKGROUND_MESSAGE_TYPES.RR_START_RECORDING,
+                                            meta: { name: 'New Recording' },
+                                        });
+                                        if (res?.success) {
+                                            window.close();
+                                        }
+                                    } catch (e) {
+                                        console.error('Failed to start recording:', e);
+                                    }
+                                }}
+                            >
+                                <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shrink-0">
+                                    <div className="w-2 h-2 rounded-full bg-[#f59e0b]" />
+                                </div>
+                                Start my first recording
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div >
+
+            {/* Element Markers Tab */}
+            < div className={`h-full overflow-y-auto ${activeTab === 'element-markers' ? 'block' : 'hidden'} bg-[#f8fafc]`
+            }>
+                <header className="mb-8 flex justify-between items-end">
+                    <div>
+                        <h1 className="text-[24px] font-[900] text-[#0f172a] tracking-tight leading-none mb-1 uppercase">Markers</h1>
+                        <p className="text-[12px] font-black text-[#94a3b8] uppercase tracking-widest">Page Interaction Hub</p>
+                    </div>
+                    <button
+                        className="bg-[#2563eb] text-white px-5 py-2.5 rounded-[12px] font-black text-[13px] hover:bg-[#1d4ed8] shadow-lg shadow-blue-100 transition-all active:scale-95 flex items-center gap-2"
+                        onClick={() => openMarkerEditor()}
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add New
+                    </button>
+                </header>
+
+                <div className="mb-8 relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94a3b8] transition-colors group-focus-within:text-[#2563eb]">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <input
+                        value={markerSearch}
+                        onChange={(e) => setMarkerSearch(e.target.value)}
+                        className="w-full bg-white border-2 border-[#f1f5f9] rounded-[20px] pl-11 pr-12 py-3.5 text-[14px] font-bold text-[#1e293b] outline-none focus:border-[#3b82f6] focus:ring-4 focus:ring-blue-50 transition-all shadow-sm"
+                        placeholder="Search names, selectors, or domains..."
+                        type="text"
+                    />
+                    {markerSearch && (
+                        <button
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#ef4444] transition-colors"
+                            onClick={() => setMarkerSearch('')}
+                        >
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
+
+                {/* Modal */}
+                {
+                    markerEditorOpen && (
                         <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 animate-in fade-in duration-200">
                             <div className="absolute inset-0 bg-[#0f172a]/40 backdrop-blur-md" onClick={closeMarkerEditor} />
                             <div className="bg-white rounded-[32px] shadow-2xl relative z-10 w-full max-w-sm overflow-hidden border border-[#f1f5f9] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
@@ -451,10 +853,12 @@ function App() {
                                 </form>
                             </div>
                         </div>
-                    )}
+                    )
+                }
 
-                    {/* List */}
-                    {filteredMarkers.length > 0 ? (
+                {/* List */}
+                {
+                    filteredMarkers.length > 0 ? (
                         <div className="space-y-8">
                             <div className="flex items-center gap-3 px-1">
                                 <span className="text-[11px] font-black text-[#64748b] uppercase tracking-widest">
@@ -567,10 +971,10 @@ function App() {
                                 </button>
                             )}
                         </div>
-                    )}
-                </div>
-            </div>
-        </div>
+                    )
+                }
+            </div >
+        </div >
     );
 }
 

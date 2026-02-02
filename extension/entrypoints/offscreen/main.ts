@@ -285,11 +285,11 @@ async function clearVectorIndexedDB(): Promise<void> {
           };
           deleteRequest.onerror = () => {
             console.warn(`Offscreen: Failed to delete database: ${dbName}`, deleteRequest.error);
-            resolve(); // 不阻塞其他数据库的清理
+            resolve(); // Don't block cleaning of other databases
           };
           deleteRequest.onblocked = () => {
             console.warn(`Offscreen: Database deletion blocked: ${dbName}`);
-            resolve(); // 不阻塞其他数据库的清理
+            resolve(); // Don't block cleaning of other databases
           };
         });
       } catch (error) {

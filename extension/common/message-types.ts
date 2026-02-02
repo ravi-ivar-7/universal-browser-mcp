@@ -25,6 +25,38 @@ export const BACKGROUND_MESSAGE_TYPES = {
   INITIALIZE_SEMANTIC_ENGINE: 'initialize_semantic_engine',
   CONNECT_NATIVE: 'connect_native',
   DISCONNECT_NATIVE: 'disconnect_native',
+  // Record & Replay background control and queries
+  RR_START_RECORDING: 'rr_start_recording',
+  RR_STOP_RECORDING: 'rr_stop_recording',
+  RR_PAUSE_RECORDING: 'rr_pause_recording',
+  RR_RESUME_RECORDING: 'rr_resume_recording',
+  RR_GET_RECORDING_STATUS: 'rr_get_recording_status',
+  RR_LIST_FLOWS: 'rr_list_flows',
+  RR_FLOWS_CHANGED: 'rr_flows_changed',
+  RR_GET_FLOW: 'rr_get_flow',
+  RR_DELETE_FLOW: 'rr_delete_flow',
+  RR_PUBLISH_FLOW: 'rr_publish_flow',
+  RR_UNPUBLISH_FLOW: 'rr_unpublish_flow',
+  RR_RUN_FLOW: 'rr_run_flow',
+  RR_SAVE_FLOW: 'rr_save_flow',
+  RR_EXPORT_FLOW: 'rr_export_flow',
+  RR_EXPORT_ALL: 'rr_export_all',
+  RR_IMPORT_FLOW: 'rr_import_flow',
+  RR_LIST_RUNS: 'rr_list_runs',
+  RR_REPLAY_EVENT: 'rr_replay_event',
+  RR_STOP_RUN: 'rr_stop_run',
+  RR_PAUSE_RUN: 'rr_pause_run',
+  RR_RESUME_RUN: 'rr_resume_run',
+  RR_GET_ACTIVE_RUNS: 'rr_get_active_runs',
+  // Triggers
+  RR_LIST_TRIGGERS: 'rr_list_triggers',
+  RR_SAVE_TRIGGER: 'rr_save_trigger',
+  RR_DELETE_TRIGGER: 'rr_delete_trigger',
+  RR_REFRESH_TRIGGERS: 'rr_refresh_triggers',
+  // Scheduling
+  RR_SCHEDULE_FLOW: 'rr_schedule_flow',
+  RR_UNSCHEDULE_FLOW: 'rr_unschedule_flow',
+  RR_LIST_SCHEDULES: 'rr_list_schedules',
   // Element marker management
   ELEMENT_MARKER_LIST_ALL: 'element_marker_list_all',
   ELEMENT_MARKER_LIST_FOR_URL: 'element_marker_list_for_url',
@@ -34,10 +66,6 @@ export const BACKGROUND_MESSAGE_TYPES = {
   ELEMENT_MARKER_VALIDATE: 'element_marker_validate',
   ELEMENT_MARKER_START: 'element_marker_start_from_popup',
   ELEMENT_MARKER_HIGHLIGHT: 'element_marker_highlight',
-  // RR / DOM Trigger integration (used by Element Marker to refresh context menu)
-  RR_REFRESH_TRIGGERS: 'rr_refresh_triggers',
-  RR_SAVE_TRIGGER: 'rr_save_trigger',
-  RR_DELETE_TRIGGER: 'rr_delete_trigger',
   // Element picker (human-in-the-loop element selection)
   ELEMENT_PICKER_UI_EVENT: 'element_picker_ui_event',
   ELEMENT_PICKER_FRAME_EVENT: 'element_picker_frame_event',
@@ -138,6 +166,13 @@ export const TOOL_MESSAGE_TYPES = {
   ELEMENT_PICKER_UI_SHOW: 'elementPickerUiShow',
   ELEMENT_PICKER_UI_UPDATE: 'elementPickerUiUpdate',
   ELEMENT_PICKER_UI_HIDE: 'elementPickerUiHide',
+  // Record & Replay content script bridge
+  RR_RECORDER_CONTROL: 'rr_recorder_control',
+  RR_RECORDER_EVENT: 'rr_recorder_event',
+  // Record & Replay timeline feed (background -> content overlay)
+  RR_TIMELINE_UPDATE: 'rr_timeline_update',
+  // Record & Replay overlay: variable collection
+  COLLECT_VARIABLES: 'collectVariables',
 } as const;
 
 // Type unions for type safety
