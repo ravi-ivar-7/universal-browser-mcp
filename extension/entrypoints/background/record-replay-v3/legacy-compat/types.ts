@@ -176,3 +176,41 @@ export interface RunResult {
   screenshots?: { onFailure?: string | null };
   paused?: boolean; // when true, the run was intentionally paused (e.g., breakpoint)
 }
+
+// =============================================================================
+// Execution Context (Ported from V2 nodes/types.ts)
+// =============================================================================
+
+export interface ExecCtx {
+  /** Runtime variables accessible to steps */
+  vars: Record<string, any>;
+  /** Logger function for recording execution events */
+  logger: (e: RunLogEntry) => void;
+  /**
+   * Current tab ID for this execution context.
+   * Managed by Scheduler, may change after openTab/switchTab actions.
+   */
+  tabId?: number;
+  /**
+   * Current frame ID within the tab.
+   * Used for iframe targeting, 0 for main frame.
+   */
+  frameId?: number;
+  /**
+   * Whether the execution has been terminated by the user.
+   */
+  isTerminated?: () => boolean;
+  /**
+   * Whether the execution is currently paused.
+   */
+  isPaused?: () => boolean;
+}
+
+export interface ExecResult {
+  alreadyLogged?: boolean;
+  deferAfterScript?: import('./legacy-types').StepScript | null;
+  nextLabel?: string;
+  control?:
+  | { kind: 'foreach'; listVar: string; itemVar: string; subflowId: string; concurrency?: number }
+  | { kind: 'while'; condition: any; subflowId: string; maxIterations: number };
+}

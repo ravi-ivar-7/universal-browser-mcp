@@ -88,7 +88,7 @@ async function locateTarget(
   });
 
   const locatedFrameId = located?.frameId ?? frameId;
-  const ref = located?.ref ?? selectorTarget.ref;
+  const ref = located?.ref;
   const resolvedBy = located?.resolvedBy || (located?.ref ? 'ref' : '');
 
   // Verify visibility for freshly located refs

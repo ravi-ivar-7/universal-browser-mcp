@@ -17,7 +17,7 @@ import type {
 import { RUN_SCHEMA_VERSION } from '../../domain/events';
 import type { JsonObject, JsonValue } from '../../domain/json';
 import { RR_ERROR_CODES, createRRError, type RRError } from '../../domain/errors';
-import type { NodePolicy, RetryPolicy } from '../../domain/policy';
+import type { NodePolicy, RetryPolicy, WaitPolicy } from '../../domain/policy';
 import { mergeNodePolicy } from '../../domain/policy';
 
 import type { EventsBus } from '../transport/events-bus';
@@ -31,7 +31,11 @@ import { createNotImplementedArtifactService } from './artifacts';
 import { getBreakpointRegistry, type BreakpointManager } from './breakpoints';
 import { findEdgeByLabel, findNextNode, validateFlowDAG } from './traversal';
 import type { RunResult } from './kernel';
+import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { handleCallTool } from '@/entrypoints/background/tools';
 import { logOverlay } from '../../../log-overlay-util';
+
+const MAX_STEP_COUNT = 1000;
 
 // ==================== Types ====================
 
@@ -71,6 +75,8 @@ export interface RunnerConfig {
   startNodeId?: NodeId;
   /** 调试配置 */
   debug?: { breakpoints?: NodeId[]; pauseOnStart?: boolean };
+  /** 是否捕获网络流量 */
+  captureNetwork?: boolean;
 }
 
 /**
@@ -295,6 +301,7 @@ class StorageBackedRunRunner implements RunRunner {
   private readonly env: RunnerEnv;
   private readonly queue = new SerialQueue();
   private readonly breakpoints: BreakpointManager;
+  private stepCount = 0;
 
   private startPromise: Promise<RunResult> | null = null;
   private outputs: JsonObject = {};
@@ -481,9 +488,110 @@ class StorageBackedRunRunner implements RunRunner {
 
   private async run(): Promise<RunResult> {
     const startedAt = this.env.now();
-    const { flow } = this.config;
+    const flow = this.config.flow;
+    const { tabId } = this.config;
 
-    const startNodeId = (this.config.startNodeId ?? flow.entryNodeId) as NodeId;
+    // 0. Interactive Variable Collection
+    const missingVars = (flow.variables || []).filter(v => v.required && (this.state.vars[v.name] === undefined || this.state.vars[v.name] === ''));
+    if (missingVars.length > 0) {
+      if (tabId) {
+        void logOverlay.info(tabId, `Missing ${missingVars.length} required variables. Prompting user...`).catch(() => { });
+        for (const v of missingVars) {
+          try {
+            const [{ result }] = await chrome.scripting.executeScript({
+              target: { tabId },
+              func: (msg) => prompt(msg),
+              args: [`Please enter value for "${v.name}" (${v.description || 'Required'})`]
+            });
+            if (result) {
+              this.state.vars[v.name] = result;
+              void logOverlay.info(tabId, `Captured ${v.name}`).catch(() => { });
+            }
+          } catch (e) {
+            console.error('Failed to prompt for variable', e);
+          }
+        }
+      }
+
+      // Re-check
+      const stillMissing = (flow.variables || []).filter(v => v.required && (this.state.vars[v.name] === undefined || this.state.vars[v.name] === ''));
+      if (stillMissing.length > 0) {
+        const error = createRRError(
+          RR_ERROR_CODES.VALIDATION_ERROR,
+          `Missing required variables: ${stillMissing.map(v => v.name).join(', ')}`
+        );
+        return this.finishFailed(startedAt, error, undefined);
+      }
+    }
+
+    // 1. Implicit Entry Point Heuristics
+    let startNodeId = this.config.startNodeId || flow.entryNodeId;
+    if (!startNodeId || !findNodeById(flow, startNodeId)) {
+      // Fallback: Try to find root nodes (indegree 0) or simply the first node
+      const hasIncoming = new Set(flow.edges.map(e => e.to));
+      const roots = flow.nodes.filter(n => !hasIncoming.has(n.id));
+      const candidate = roots[0] || flow.nodes[0];
+
+      if (candidate) {
+        startNodeId = candidate.id;
+        // Log warning about implicit entry
+        void this.queue.run(() =>
+          this.env.events.append({
+            runId: this.runId,
+            type: 'run.started', // Will be logged properly below, just overlay for now
+            flowId: flow.id,
+            tabId: this.config.tabId,
+            // We misuse this event slightly to log strict warning, or just use overlay
+          } as RunEventInput)
+        );
+        if (this.config.tabId) {
+          void logOverlay.warning(this.config.tabId, `No entry node found. Implicitly starting at ${candidate.kind} (${candidate.id})`).catch(() => { });
+        }
+      } else {
+        return this.finishFailed(startedAt, createRRError(RR_ERROR_CODES.DAG_INVALID, 'Flow has no nodes'), undefined);
+      }
+    }
+
+    // 1.5 Binding Enforcement
+    if (flow.meta?.bindings && flow.meta.bindings.length > 0 && tabId) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        const currentUrl = tab.url || '';
+        const matched = flow.meta.bindings.some(b => {
+          if (b.kind === 'domain') return new URL(currentUrl).hostname.includes(b.value);
+          if (b.kind === 'url') return currentUrl.startsWith(b.value);
+          if (b.kind === 'path') return new URL(currentUrl).pathname.startsWith(b.value);
+          return false;
+        });
+
+        if (!matched) {
+          const error = createRRError(
+            RR_ERROR_CODES.VALIDATION_ERROR,
+            `Current URL "${currentUrl}" does not match flow bindings.`
+          );
+          // Log explicit error to overlay
+          void logOverlay.error(tabId, `Binding Mismatch: Flow expects ${flow.meta.bindings.map(b => b.value).join(' or ')}`).catch(() => { });
+          return this.finishFailed(startedAt, error, undefined);
+        }
+      } catch (e) {
+        console.warn('Binding check failed', e);
+        // Non-fatal if we can't check, but usually valid
+      }
+    }
+
+    // 2. Network Capture
+    if (this.config.captureNetwork) {
+      try {
+        await handleCallTool({
+          name: TOOL_NAMES.BROWSER.NETWORK_DEBUGGER_START,
+          args: { includeStatic: false, maxCaptureTime: 3 * 60_000, inactivityTimeout: 0 },
+        });
+        if (tabId) void logOverlay.info(tabId, 'Network capture started').catch(() => { });
+      } catch (e) {
+        console.error('Failed to start network capture', e);
+        if (tabId) void logOverlay.warning(tabId, 'Network capture failed to start').catch(() => { });
+      }
+    }
 
     // Ensure Run record exists FIRST (before DAG validation)
     // so that finishFailed can safely patch the record
@@ -524,6 +632,13 @@ class StorageBackedRunRunner implements RunRunner {
     // Main execution loop
     let currentNodeId: NodeId | null = startNodeId;
     while (currentNodeId) {
+      // Loop Guard
+      this.stepCount++;
+      if (this.stepCount > MAX_STEP_COUNT) {
+        const error = createRRError(RR_ERROR_CODES.DAG_EXECUTION_FAILED, `Exceeded maximum step count (${MAX_STEP_COUNT}). Possible infinite loop.`);
+        return this.finishFailed(startedAt, error, currentNodeId);
+      }
+
       this.state.currentNodeId = currentNodeId;
 
       // Only update currentNodeId, not status (to preserve paused state)
@@ -630,6 +745,10 @@ class StorageBackedRunRunner implements RunRunner {
       if (this.config.tabId) {
         void logOverlay.step(this.config.tabId, node.kind, node.id, 'start').catch(() => { });
       }
+
+      // Apply Wait Policy
+      const prePolicy = this.resolveNodePolicy(flow, node);
+      await this.applyWaitPolicy(prePolicy.wait);
 
       const exec = await this.executeNodeAttempt(flow, node);
       if (exec.status === 'succeeded') {
@@ -741,6 +860,22 @@ class StorageBackedRunRunner implements RunRunner {
     const pluginDefault = def?.defaultPolicy;
     const merged1 = mergeNodePolicy(flowDefault, pluginDefault);
     return mergeNodePolicy(merged1, node.policy);
+  }
+
+  private async applyWaitPolicy(wait?: WaitPolicy) {
+    if (!wait) return;
+
+    if (wait.delayBeforeMs && wait.delayBeforeMs > 0) {
+      await sleep(wait.delayBeforeMs);
+    }
+
+    // We assume handleCallTool is available for more advanced waits if needed
+    // but for V3 core, delay is the strict minimum.
+    // StableDOM/NetworkIdle would typically require tool calls or script injections.
+    if (wait.waitForStableDom || wait.waitForNetworkIdle) {
+      // Placeholder for advanced wait logic
+      // await handleCallTool({ name: TOOL_NAMES.BROWSER.WAIT_FOR_STABLE_DOM ... })
+    }
   }
 
   private decideOnError(
@@ -882,7 +1017,29 @@ class StorageBackedRunRunner implements RunRunner {
       void logOverlay.done(this.config.tabId).catch(() => { });
     }
 
-    return { runId: this.runId, status: 'succeeded', tookMs, outputs: this.outputs };
+    // Filter sensitive outputs
+    const sensitiveKeys = new Set(
+      (this.config.flow.variables || [])
+        .filter(v => !!(v as any).sensitive) // Cast in case sensitive missing from type definition yet
+        .map(v => v.name)
+    );
+    const safeOutputs: Record<string, JsonValue> = {};
+    for (const [key, val] of Object.entries(this.outputs)) {
+      if (!sensitiveKeys.has(key)) {
+        safeOutputs[key] = val;
+      }
+    }
+
+    // Stop network capture if it was started (backgrounded)
+    if (this.config.captureNetwork) {
+      void this.queue.run(async () => {
+        try {
+          await handleCallTool({ name: TOOL_NAMES.BROWSER.NETWORK_DEBUGGER_STOP, args: {} });
+        } catch { }
+      });
+    }
+
+    return { runId: this.runId, status: 'succeeded', tookMs, outputs: safeOutputs };
   }
 
   private finishFailed(startedAt: number, error: RRError, nodeId?: NodeId): RunResult {

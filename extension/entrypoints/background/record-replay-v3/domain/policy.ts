@@ -45,9 +45,9 @@ export type OnErrorPolicy =
   | { kind: 'stop' }
   | { kind: 'continue'; as?: 'warning' | 'error' }
   | {
-      kind: 'goto';
-      target: { kind: 'edgeLabel'; label: EdgeLabel } | { kind: 'node'; nodeId: NodeId };
-    }
+    kind: 'goto';
+    target: { kind: 'edgeLabel'; label: EdgeLabel } | { kind: 'node'; nodeId: NodeId };
+  }
   | { kind: 'retry'; override?: Partial<RetryPolicy> };
 
 /**
@@ -66,6 +66,19 @@ export interface ArtifactPolicy {
 }
 
 /**
+ * 等待策略
+ * @description 定义节点执行前的等待行为
+ */
+export interface WaitPolicy {
+  /** 执行前等待时间（毫秒） */
+  delayBeforeMs?: UnixMillis;
+  /** 是否等待网络空闲 */
+  waitForNetworkIdle?: boolean;
+  /** 是否等待 DOM 稳定 */
+  waitForStableDom?: boolean;
+}
+
+/**
  * 节点级策略
  * @description 单个节点的执行策略配置
  */
@@ -74,6 +87,8 @@ export interface NodePolicy {
   timeout?: TimeoutPolicy;
   /** 重试策略 */
   retry?: RetryPolicy;
+  /** 等待策略 */
+  wait?: WaitPolicy;
   /** 错误处理策略 */
   onError?: OnErrorPolicy;
   /** 工件策略 */
@@ -107,6 +122,7 @@ export function mergeNodePolicy(
   return {
     timeout: nodePolicy.timeout ?? flowDefault.timeout,
     retry: nodePolicy.retry ?? flowDefault.retry,
+    wait: nodePolicy.wait ?? flowDefault.wait,
     onError: nodePolicy.onError ?? flowDefault.onError,
     artifacts: nodePolicy.artifacts
       ? { ...flowDefault.artifacts, ...nodePolicy.artifacts }

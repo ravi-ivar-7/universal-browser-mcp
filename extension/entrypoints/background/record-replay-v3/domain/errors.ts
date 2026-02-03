@@ -16,6 +16,8 @@ export const RR_ERROR_CODES = {
   DAG_INVALID: 'DAG_INVALID',
   /** DAG 存在循环 */
   DAG_CYCLE: 'DAG_CYCLE',
+  /** DAG 执行失败（如超限） */
+  DAG_EXECUTION_FAILED: 'DAG_EXECUTION_FAILED',
 
   // ===== 运行时错误 =====
   /** 操作超时 */

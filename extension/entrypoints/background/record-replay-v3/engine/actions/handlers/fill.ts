@@ -75,7 +75,7 @@ export const fillHandler: ActionHandler<'fill'> = {
     });
 
     const frameId = located?.frameId ?? ctx.frameId;
-    const refToUse = located?.ref ?? selectorTarget.ref;
+    const refToUse = located?.ref;
     const cssSelector = !located?.ref ? firstCssOrAttr : undefined;
 
     if (!refToUse && !cssSelector) {

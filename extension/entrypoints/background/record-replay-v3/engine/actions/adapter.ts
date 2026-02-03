@@ -11,8 +11,7 @@
  * - `createStepExecutor`: Factory for a Step executor backed by ActionRegistry
  */
 
-import type { ExecCtx, ExecResult } from '../../../record-replay/nodes/types';
-import type { Step } from '../../../record-replay/types';
+import type { ExecCtx, ExecResult, Step } from '../../legacy-compat/types';
 import type { ActionRegistry } from './registry';
 import type {
   ActionExecutionContext,
