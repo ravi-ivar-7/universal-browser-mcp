@@ -30,10 +30,10 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
       const response = await Promise.race([
         typeof pingFrameId === 'number'
           ? chrome.tabs.sendMessage(
-              tabId,
-              { action: `${this.name}_ping` },
-              { frameId: pingFrameId },
-            )
+            tabId,
+            { action: `${this.name}_ping` },
+            { frameId: pingFrameId },
+          )
           : chrome.tabs.sendMessage(tabId, { action: `${this.name}_ping` }),
         new Promise((_, reject) =>
           setTimeout(
@@ -86,15 +86,35 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
   /**
    * Send message to tab
    */
-  protected async sendMessageToTab(tabId: number, message: any, frameId?: number): Promise<any> {
+  protected async sendMessageToTab(
+    tabId: number,
+    message: any,
+    frameId?: number,
+    timeoutMs: number = 10000,
+  ): Promise<any> {
     try {
-      const response =
+      const responsePromise =
         typeof frameId === 'number'
-          ? await chrome.tabs.sendMessage(tabId, message, { frameId })
-          : await chrome.tabs.sendMessage(tabId, message);
+          ? chrome.tabs.sendMessage(tabId, message, { frameId })
+          : chrome.tabs.sendMessage(tabId, message);
 
-      if (response && response.error) {
-        throw new Error(String(response.error));
+      const response = await Promise.race([
+        responsePromise,
+        new Promise((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Message to tab ${tabId} (action: ${message?.action || 'unknown'}) timed out after ${timeoutMs}ms`,
+                ),
+              ),
+            timeoutMs,
+          ),
+        ),
+      ]);
+
+      if (response && (response as any).error) {
+        throw new Error(String((response as any).error));
       }
 
       return response;
@@ -104,10 +124,7 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
         `Error sending message to tab ${tabId} for action ${message?.action || 'unknown'}: ${errorMessage}`,
       );
 
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error(errorMessage);
+      throw error instanceof Error ? error : new Error(errorMessage);
     }
   }
 

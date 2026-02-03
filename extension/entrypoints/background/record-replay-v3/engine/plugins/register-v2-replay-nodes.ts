@@ -5,11 +5,11 @@
  * This enables V3 to execute flows that use V2 action types.
  */
 
-import { createReplayActionRegistry } from '@/entrypoints/background/record-replay/actions/handlers';
+import { createReplayActionRegistry } from '../actions/handlers';
 import type {
   ActionHandler,
   ExecutableActionType,
-} from '@/entrypoints/background/record-replay/actions/types';
+} from '../actions/types';
 
 import type { PluginRegistry } from './registry';
 import {

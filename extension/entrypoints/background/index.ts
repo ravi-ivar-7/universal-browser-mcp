@@ -57,7 +57,7 @@ export default defineBackground(() => {
   initQuickPanelNavigationHandler();
 
   // Record & Replay V1/V2: recording, playback, triggers, schedules
-  initRecordReplayListeners();
+  // initRecordReplayListeners(); // DISABLED: Using V3 standalone engine
 
   // Record & Replay V3 (new engine)
   if (ENABLE_RR_V3) {

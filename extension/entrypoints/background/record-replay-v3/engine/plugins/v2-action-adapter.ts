@@ -22,7 +22,7 @@ import type {
   ExecutableActionType,
   ValidationResult,
   Action,
-} from '@/entrypoints/background/record-replay/actions/types';
+} from '../actions/types';
 
 import type { JsonValue, JsonObject } from '../../domain/json';
 import { RR_ERROR_CODES, createRRError, type RRError, type RRErrorCode } from '../../domain/errors';
@@ -211,9 +211,9 @@ function toV2ActionPolicy(policy: NodePolicy | undefined): ActionPolicy | undefi
 
   const timeout = policy.timeout
     ? {
-        ms: policy.timeout.ms,
-        scope: policy.timeout.scope === 'node' ? ('action' as const) : ('attempt' as const),
-      }
+      ms: policy.timeout.ms,
+      scope: policy.timeout.scope === 'node' ? ('action' as const) : ('attempt' as const),
+    }
     : undefined;
 
   // NodePolicy/ActionPolicy are structurally similar; we only normalize timeout.scope.
@@ -225,37 +225,37 @@ function toV2ActionPolicy(policy: NodePolicy | undefined): ActionPolicy | undefi
       : {}),
     ...(policy.onError
       ? (() => {
-          // V2 only supports goto by edge label. Node-target goto can't be represented.
-          if (policy.onError.kind === 'goto' && policy.onError.target.kind === 'node') {
-            return { onError: { kind: 'stop' } as ActionPolicy['onError'] };
-          }
-          if (policy.onError.kind === 'continue') {
+        // V2 only supports goto by edge label. Node-target goto can't be represented.
+        if (policy.onError.kind === 'goto' && policy.onError.target.kind === 'node') {
+          return { onError: { kind: 'stop' } as ActionPolicy['onError'] };
+        }
+        if (policy.onError.kind === 'continue') {
+          return {
+            onError: {
+              kind: 'continue',
+              level: policy.onError.as,
+            } as ActionPolicy['onError'],
+          };
+        }
+        if (policy.onError.kind === 'goto') {
+          const target = policy.onError.target;
+          if (target.kind === 'edgeLabel') {
             return {
               onError: {
-                kind: 'continue',
-                level: policy.onError.as,
+                kind: 'goto',
+                label: target.label,
               } as ActionPolicy['onError'],
             };
           }
-          if (policy.onError.kind === 'goto') {
-            const target = policy.onError.target;
-            if (target.kind === 'edgeLabel') {
-              return {
-                onError: {
-                  kind: 'goto',
-                  label: target.label,
-                } as ActionPolicy['onError'],
-              };
-            }
-            // Node target can't be represented in V2, fall through to stop
-            return { onError: { kind: 'stop' } as ActionPolicy['onError'] };
-          }
-          if (policy.onError.kind === 'retry') {
-            // V2 has retry policy on action.policy.retry; keep onError as stop to avoid double semantics.
-            return { onError: { kind: 'stop' } as ActionPolicy['onError'] };
-          }
-          return { onError: policy.onError as unknown as ActionPolicy['onError'] };
-        })()
+          // Node target can't be represented in V2, fall through to stop
+          return { onError: { kind: 'stop' } as ActionPolicy['onError'] };
+        }
+        if (policy.onError.kind === 'retry') {
+          // V2 has retry policy on action.policy.retry; keep onError as stop to avoid double semantics.
+          return { onError: { kind: 'stop' } as ActionPolicy['onError'] };
+        }
+        return { onError: policy.onError as unknown as ActionPolicy['onError'] };
+      })()
       : {}),
   };
 }

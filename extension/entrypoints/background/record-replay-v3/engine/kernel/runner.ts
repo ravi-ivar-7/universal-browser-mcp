@@ -31,6 +31,7 @@ import { createNotImplementedArtifactService } from './artifacts';
 import { getBreakpointRegistry, type BreakpointManager } from './breakpoints';
 import { findEdgeByLabel, findNextNode, validateFlowDAG } from './traversal';
 import type { RunResult } from './kernel';
+import { logOverlay } from '../../../log-overlay-util';
 
 // ==================== Types ====================
 
@@ -40,6 +41,8 @@ import type { RunResult } from './kernel';
 export interface RunnerRuntimeState {
   /** Run ID */
   runId: RunId;
+  /** Flow ID */
+  flowId: string;
   /** 当前节点 ID */
   currentNodeId: NodeId | null;
   /** 当前尝试次数 */
@@ -50,6 +53,8 @@ export interface RunnerRuntimeState {
   paused: boolean;
   /** 是否取消 */
   canceled: boolean;
+  /** 执行状态 */
+  status: 'running' | 'paused' | 'canceled' | 'succeeded' | 'failed';
 }
 
 /**
@@ -269,9 +274,9 @@ type OnErrorDecision =
   | { kind: 'stop' }
   | { kind: 'continue' }
   | {
-      kind: 'goto';
-      target: { kind: 'edgeLabel'; label: string } | { kind: 'node'; nodeId: NodeId };
-    }
+    kind: 'goto';
+    target: { kind: 'edgeLabel'; label: string } | { kind: 'node'; nodeId: NodeId };
+  }
   | { kind: 'retry'; retryPolicy: RetryPolicy | null };
 
 type NodeRunResult =
@@ -303,11 +308,13 @@ class StorageBackedRunRunner implements RunRunner {
 
     this.state = {
       runId,
+      flowId: config.flow.id,
       currentNodeId: null,
       attempt: 0,
       vars: this.buildInitialVars(),
       paused: false,
       canceled: false,
+      status: 'running',
     };
 
     this.breakpoints = getBreakpointRegistry().getOrCreate(runId, config.debug?.breakpoints);
@@ -331,6 +338,7 @@ class StorageBackedRunRunner implements RunRunner {
   resume(): void {
     if (!this.state.paused) return;
     this.state.paused = false;
+    this.state.status = 'running';
     this.pauseWaiter?.resolve(undefined);
     this.pauseWaiter = null;
 
@@ -347,6 +355,7 @@ class StorageBackedRunRunner implements RunRunner {
   cancel(reason?: string): void {
     if (this.state.canceled) return;
     this.state.canceled = true;
+    this.state.status = 'canceled';
     this.cancelReason = reason;
 
     if (this.state.paused) {
@@ -372,7 +381,7 @@ class StorageBackedRunRunner implements RunRunner {
           patch: [{ op: 'set', name, value }],
         } as RunEventInput),
       )
-      .catch(() => {});
+      .catch(() => { });
   }
 
   // ==================== Private Methods ====================
@@ -392,6 +401,7 @@ class StorageBackedRunRunner implements RunRunner {
     if (this.state.paused) return;
 
     this.state.paused = true;
+    this.state.status = 'paused';
     if (!this.pauseWaiter) {
       this.pauseWaiter = createDeferred<void>();
     }
@@ -501,6 +511,11 @@ class StorageBackedRunRunner implements RunRunner {
       } as RunEventInput),
     );
 
+    // Initialize log overlay on the tab
+    if (this.config.tabId) {
+      void logOverlay.init(this.config.tabId).catch(() => { });
+    }
+
     // Handle pauseOnStart
     if (this.config.debug?.pauseOnStart) {
       this.requestPause({ kind: 'policy', nodeId: startNodeId, reason: 'pauseOnStart' });
@@ -594,7 +609,7 @@ class StorageBackedRunRunner implements RunRunner {
   private async runNode(flow: FlowV3, node: NodeV3, nodeStartAt: number): Promise<NodeRunResult> {
     let attempt = 1;
 
-    for (;;) {
+    for (; ;) {
       if (this.state.canceled) return { terminal: 'canceled' };
       await this.waitIfPaused();
       if (this.state.canceled) return { terminal: 'canceled' };
@@ -610,6 +625,11 @@ class StorageBackedRunRunner implements RunRunner {
           attempt,
         } as RunEventInput),
       );
+
+      // Log to overlay
+      if (this.config.tabId) {
+        void logOverlay.step(this.config.tabId, node.kind, node.id, 'start').catch(() => { });
+      }
 
       const exec = await this.executeNodeAttempt(flow, node);
       if (exec.status === 'succeeded') {
@@ -643,6 +663,11 @@ class StorageBackedRunRunner implements RunRunner {
           } as RunEventInput),
         );
 
+        // Log success to overlay
+        if (this.config.tabId) {
+          void logOverlay.step(this.config.tabId, node.kind, node.id, 'success').catch(() => { });
+        }
+
         if (exec.next?.kind === 'end') {
           return { nextNodeId: null };
         }
@@ -668,14 +693,19 @@ class StorageBackedRunRunner implements RunRunner {
         } as RunEventInput),
       );
 
+      // Log failure to overlay
+      if (this.config.tabId) {
+        void logOverlay.step(this.config.tabId, node.kind, node.id, 'error', error.message).catch(() => { });
+      }
+
       if (decision.kind === 'retry' && decision.retryPolicy) {
         const maxAttempts = 1 + Math.max(0, decision.retryPolicy.retries);
         const canRetry =
           attempt < maxAttempts &&
           (decision.retryPolicy.retryOn
             ? decision.retryPolicy.retryOn.includes(
-                error.code as (typeof decision.retryPolicy.retryOn)[number],
-              )
+              error.code as (typeof decision.retryPolicy.retryOn)[number],
+            )
             : true);
 
         if (!canRetry) {
@@ -791,7 +821,7 @@ class StorageBackedRunRunner implements RunRunner {
               ...(data !== undefined ? { data } : {}),
             } as RunEventInput),
           )
-          .catch(() => {});
+          .catch(() => { });
       },
       chooseNext: (label) => ({ kind: 'edgeLabel', label }),
       artifacts: {
@@ -828,12 +858,14 @@ class StorageBackedRunRunner implements RunRunner {
     }
   }
 
-  private async finishSucceeded(startedAt: number): Promise<RunResult> {
-    const tookMs = this.env.now() - startedAt;
-    await this.queue.run(async () => {
+  private finishSucceeded(startedAt: number): RunResult {
+    this.state.status = 'succeeded';
+    const finishedAt = this.env.now();
+    const tookMs = finishedAt - startedAt;
+    void this.queue.run(async () => {
       await this.env.storage.runs.patch(this.runId, {
         status: 'succeeded',
-        finishedAt: this.env.now(),
+        finishedAt,
         tookMs,
         outputs: this.outputs,
       });
@@ -845,19 +877,22 @@ class StorageBackedRunRunner implements RunRunner {
       } as RunEventInput);
     });
 
+    // Mark overlay as done
+    if (this.config.tabId) {
+      void logOverlay.done(this.config.tabId).catch(() => { });
+    }
+
     return { runId: this.runId, status: 'succeeded', tookMs, outputs: this.outputs };
   }
 
-  private async finishFailed(
-    startedAt: number,
-    error: RRError,
-    nodeId?: NodeId,
-  ): Promise<RunResult> {
-    const tookMs = this.env.now() - startedAt;
-    await this.queue.run(async () => {
+  private finishFailed(startedAt: number, error: RRError, nodeId?: NodeId): RunResult {
+    this.state.status = 'failed';
+    const finishedAt = this.env.now();
+    const tookMs = finishedAt - startedAt;
+    void this.queue.run(async () => {
       await this.env.storage.runs.patch(this.runId, {
         status: 'failed',
-        finishedAt: this.env.now(),
+        finishedAt,
         tookMs,
         error,
         ...(nodeId ? { currentNodeId: nodeId } : {}),
@@ -869,6 +904,11 @@ class StorageBackedRunRunner implements RunRunner {
         ...(nodeId ? { nodeId } : {}),
       } as RunEventInput);
     });
+
+    // Log final error to overlay
+    if (this.config.tabId) {
+      void logOverlay.error(this.config.tabId, `Run failed: ${error.message}`).catch(() => { });
+    }
 
     return { runId: this.runId, status: 'failed', tookMs, error };
   }
@@ -887,6 +927,11 @@ class StorageBackedRunRunner implements RunRunner {
         ...(this.cancelReason ? { reason: this.cancelReason } : {}),
       } as RunEventInput);
     });
+
+    // Log cancellation to overlay
+    if (this.config.tabId) {
+      void logOverlay.warning(this.config.tabId, 'Run canceled').catch(() => { });
+    }
 
     return { runId: this.runId, status: 'canceled', tookMs };
   }

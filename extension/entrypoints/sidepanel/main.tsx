@@ -5,11 +5,12 @@ import { SidepanelNavigator } from './components/SidepanelNavigator';
 import { useAgentTheme, preloadAgentTheme } from './hooks/useAgentTheme';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 import type { ElementMarker, UpsertMarkerRequest } from '@/common/element-marker-types';
-import type { Flow } from '@/entrypoints/background/record-replay/types';
+import type { FlowV3 as Flow } from '@/entrypoints/background/record-replay-v3/domain/flow';
 
 import { AgentChat } from './components/AgentChat';
 import ContextLoader from './components/ContextLoader';
-import { DebuggerPanel } from './components/rr-v3';
+import { useRRV3Rpc } from '@/entrypoints/shared/composables';
+import type { RunEvent } from '@/entrypoints/background/record-replay-v3/domain/events';
 
 // Import styles (only keeping tailwind if we are doing inline-only)
 import '../styles/tailwind.css';
@@ -22,6 +23,7 @@ void chrome.runtime.sendMessage({ type: NativeMessageType.ENSURE_NATIVE }).catch
 
 function App() {
     const { theme: currentTheme, initTheme } = useAgentTheme();
+    const rpc = useRRV3Rpc({ autoConnect: true });
     const [activeTab, setActiveTab] = useState<'element-markers' | 'agent-chat' | 'workflows'>('agent-chat');
 
     // Element markers state
@@ -46,34 +48,33 @@ function App() {
     const [activeRunIds, setActiveRunIds] = useState<Record<string, string>>({});
     const [expandingFlows, setExpandingFlows] = useState<Record<string, boolean>>({});
     const [flowPaused, setFlowPaused] = useState<Record<string, boolean>>({});
-    const [flowLogs, setFlowLogs] = useState<Record<string, any[]>>({});
-    const [activeRunFlow, setActiveRunFlow] = useState<Flow | null>(null); // Keep for legacy or single-focus if needed
+    const [flowLogs, setFlowLogs] = useState<Record<string, RunEvent[]>>({});
+
+    const {
+        request: rpcRequest,
+        subscribe: rpcSubscribe,
+        unsubscribe: rpcUnsubscribe,
+        onEvent: rpcOnEvent,
+        connected: rpcConnected
+    } = rpc;
+
     const loadFlows = useCallback(async () => {
         setIsFlowsLoading(true);
         try {
-            const res: any = await chrome.runtime.sendMessage({
-                type: BACKGROUND_MESSAGE_TYPES.RR_LIST_FLOWS,
-            });
-            if (res?.success) {
-                setFlows(res.flows || []);
-            }
+            const flows: any = await rpcRequest('rr_v3.listFlows');
+            setFlows(flows || []);
         } catch (e) {
-            console.error('Failed to load flows:', e);
+            console.error('[Sidepanel] Failed to load flows:', e);
         } finally {
             setIsFlowsLoading(false);
         }
-    }, []);
+    }, [rpcRequest]);
 
     const handleDeleteFlow = async (flow: Flow) => {
         if (!confirm(`Are you sure you want to delete workflow "${flow.name || 'Untitled'}"?`)) return;
         try {
-            const res: any = await chrome.runtime.sendMessage({
-                type: BACKGROUND_MESSAGE_TYPES.RR_DELETE_FLOW,
-                flowId: flow.id,
-            });
-            if (res?.success) {
-                loadFlows();
-            }
+            await rpcRequest('rr_v3.deleteFlow', { flowId: flow.id });
+            loadFlows();
         } catch (e) {
             console.error('Failed to delete flow:', e);
         }
@@ -81,17 +82,13 @@ function App() {
 
     const handleRunFlow = async (flowId: string) => {
         try {
-            const flow = flows.find(f => f.id === flowId);
             setFlowLogs(prev => ({ ...prev, [flowId]: [] }));
             setExpandingFlows(prev => ({ ...prev, [flowId]: true }));
             setFlowPaused(prev => ({ ...prev, [flowId]: false }));
 
-            const res: any = await chrome.runtime.sendMessage({
-                type: BACKGROUND_MESSAGE_TYPES.RR_RUN_FLOW,
-                flowId,
-            });
-            if (res?.success && res.result?.runId) {
-                setActiveRunIds(prev => ({ ...prev, [flowId]: res.result.runId }));
+            const res: any = await rpcRequest('rr_v3.enqueueRun', { flowId });
+            if (res?.runId) {
+                setActiveRunIds(prev => ({ ...prev, [flowId]: res.runId }));
             }
         } catch (e) {
             console.error('Failed to run flow:', e);
@@ -102,10 +99,7 @@ function App() {
         const runId = activeRunIds[flowId];
         if (!runId) return;
         try {
-            await chrome.runtime.sendMessage({
-                type: BACKGROUND_MESSAGE_TYPES.RR_STOP_RUN,
-                runId,
-            });
+            await rpcRequest('rr_v3.cancelRun', { runId });
         } catch (e) {
             console.error('Failed to stop run:', e);
         }
@@ -115,10 +109,7 @@ function App() {
         const runId = activeRunIds[flowId];
         if (!runId) return;
         try {
-            await chrome.runtime.sendMessage({
-                type: BACKGROUND_MESSAGE_TYPES.RR_PAUSE_RUN,
-                runId,
-            });
+            await rpcRequest('rr_v3.pauseRun', { runId });
             setFlowPaused(prev => ({ ...prev, [flowId]: true }));
         } catch (e) {
             console.error('Failed to pause run:', e);
@@ -129,10 +120,7 @@ function App() {
         const runId = activeRunIds[flowId];
         if (!runId) return;
         try {
-            await chrome.runtime.sendMessage({
-                type: BACKGROUND_MESSAGE_TYPES.RR_RESUME_RUN,
-                runId,
-            });
+            await rpcRequest('rr_v3.resumeRun', { runId });
             setFlowPaused(prev => ({ ...prev, [flowId]: false }));
         } catch (e) {
             console.error('Failed to resume run:', e);
@@ -145,50 +133,97 @@ function App() {
         }
     }, [activeTab, loadFlows]);
 
+    // V3 RPC effect handles real-time events and state sync
+
+    useEffect(() => {
+        if (rpcConnected) {
+            // Subscribe to all runs to power the live feed across all workflows
+            rpcSubscribe(null).catch(() => { });
+        }
+    }, [rpcConnected, rpcSubscribe]);
+
+    useEffect(() => {
+        const unsubscribe = rpcOnEvent(async (event: RunEvent) => {
+            // Determine flowId: either from the event itself or from our local mapping
+            let fId = (event as any).flowId || '';
+
+            if (!fId) {
+                for (const [flowId, runId] of Object.entries(activeRunIds)) {
+                    if (runId === event.runId) {
+                        fId = flowId;
+                        break;
+                    }
+                }
+            }
+
+            if (!fId) return;
+
+            // Update mapping if needed
+            if (!activeRunIds[fId]) {
+                setActiveRunIds(prev => ({ ...prev, [fId]: event.runId }));
+            }
+
+            setFlowLogs(prev => ({
+                ...prev,
+                [fId]: [...(prev[fId] || []), event]
+            }));
+
+            // Sync state for started runs
+            if (event.type === 'run.started') {
+                setExpandingFlows(prev => ({ ...prev, [fId]: true }));
+                setFlowPaused(prev => ({ ...prev, [fId]: false }));
+            }
+        });
+
+        return () => unsubscribe();
+    }, [rpcOnEvent, activeRunIds]);
+
     useEffect(() => {
         const listener = (message: any) => {
             if (message.type === BACKGROUND_MESSAGE_TYPES.RR_FLOWS_CHANGED) {
                 loadFlows();
             }
-            if (message.type === BACKGROUND_MESSAGE_TYPES.RR_REPLAY_EVENT) {
-                const fId = message.flowId;
-                if (fId) {
-                    if (message.runId) {
-                        setActiveRunIds(prev => ({ ...prev, [fId]: message.runId }));
-                    }
-                    setFlowLogs(prev => ({
-                        ...prev,
-                        [fId]: [...(prev[fId] || []), message.entry]
-                    }));
-                }
-            }
+            // Removed RR_REPLAY_EVENT listener - now powered by RPC Event Stream
         };
         chrome.runtime.onMessage.addListener(listener);
         return () => chrome.runtime.onMessage.removeListener(listener);
     }, [loadFlows]);
 
-    // Initialize
+    // Initial sync of active runs via RPC
     useEffect(() => {
-        initTheme();
+        if (!rpcConnected) return;
 
-        // Sync active runs from background
-        chrome.runtime.sendMessage({ type: BACKGROUND_MESSAGE_TYPES.RR_GET_ACTIVE_RUNS }, (res) => {
-            if (res?.success && res.runs) {
+        const syncActiveRuns = async () => {
+            try {
+                const activeRuns: any = await rpcRequest('rr_v3.listQueue', { status: 'running' });
+                // Also get paused ones
+                const pausedRuns: any = await rpcRequest('rr_v3.listQueue', { status: 'paused' });
+
+                const allActive = [...(activeRuns || []), ...(pausedRuns || [])];
                 const runIds: Record<string, string> = {};
                 const expanded: Record<string, boolean> = {};
                 const paused: Record<string, boolean> = {};
 
-                res.runs.forEach((r: any) => {
-                    runIds[r.flowId] = r.runId;
+                allActive.forEach((r: any) => {
+                    runIds[r.flowId] = r.id;
                     expanded[r.flowId] = true;
-                    paused[r.flowId] = !!r.paused;
+                    paused[r.flowId] = r.status === 'paused';
                 });
 
                 setActiveRunIds(runIds);
                 setExpandingFlows(expanded);
                 setFlowPaused(paused);
+            } catch (e) {
+                console.error('Failed to sync active runs:', e);
             }
-        });
+        };
+
+        syncActiveRuns();
+    }, [rpcConnected, rpcRequest]);
+
+    // Initialize
+    useEffect(() => {
+        initTheme();
 
         const params = new URLSearchParams(window.location.search);
         const tabParam = params.get('tab');
@@ -498,7 +533,7 @@ function App() {
                     <div className="flex items-center justify-between mb-8">
                         <div>
                             <h1 className="text-[24px] font-[900] text-[#0f172a] tracking-tight leading-none mb-1 uppercase">Workflows</h1>
-                            <p className="text-[12px] font-bold text-[#94a3b8] uppercase tracking-tight opacity-70">Record & Replay Automation</p>
+                            <p className="text-[12px] font-bold text-[#94a3b8] uppercase tracking-tight opacity-70">Record & Replay V3</p>
                         </div>
                         {flows.length > 0 && (
                             <div className="flex items-center gap-2">
@@ -532,11 +567,11 @@ function App() {
 
                     {flows.length > 0 ? (
                         <div className="space-y-4">
-                            {flows.sort((a, b) => new Date(b.meta?.updatedAt || 0).getTime() - new Date(a.meta?.updatedAt || 0).getTime()).map(flow => {
-                                const isActive = !!expandingFlows[flow.id];
+                            {flows.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()).map(flow => {
+                                const isActive = !!activeRunIds[flow.id];
                                 const currentLogs = flowLogs[flow.id] || [];
-                                const isCompleted = currentLogs.some(l => l.stepId === 'log_run_end' && l.status === 'success');
-                                const isFailed = currentLogs.some(l => l.status === 'failed');
+                                const isCompleted = currentLogs.some(e => e.type === 'run.succeeded');
+                                const isFailed = currentLogs.some(e => e.type === 'run.failed' || e.type === 'run.canceled');
 
                                 return (
                                     <div key={flow.id} className={`group bg-white rounded-[24px] border ${isActive ? 'border-[#f59e0b] shadow-xl shadow-amber-50' : 'border-[#f1f5f9]'} p-5 hover:shadow-lg transition-all duration-300 overflow-hidden`}>
@@ -548,7 +583,7 @@ function App() {
                                                         {isActive ? (isFailed ? 'Failed' : isCompleted ? 'Completed' : 'Running') : `${flow.nodes?.length || 0} Steps`}
                                                     </span>
                                                     <span className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-tighter">
-                                                        {new Date(flow.meta?.updatedAt || 0).toLocaleDateString()}
+                                                        {new Date(flow.updatedAt || 0).toLocaleDateString()}
                                                     </span>
                                                     {flow.meta?.domain && (
                                                         <span className="text-[10px] font-bold text-[#64748b] truncate max-w-[120px] opacity-60">
@@ -617,9 +652,9 @@ function App() {
                                             </div>
                                         </div>
 
-                                        {isActive && (
+                                        {(isActive || expandingFlows[flow.id]) && (
                                             <div className="mt-6 border-t border-slate-100 pt-6 animate-in slide-in-from-top-4 duration-500">
-                                                {/* Live Execution Feed */}
+
                                                 <div className="flex items-center justify-between mb-4">
                                                     <div className="flex items-center gap-2">
                                                         <h4 className="text-[11px] font-[900] text-[#64748b] uppercase tracking-widest">Live Execution Feed</h4>
@@ -630,42 +665,48 @@ function App() {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <button
-                                                            onClick={() => setExpandingFlows(prev => ({ ...prev, [flow.id]: false }))}
-                                                            className="text-[10px] font-bold text-[#94a3b8] hover:text-[#0f172a] transition-all uppercase tracking-tight"
-                                                        >
-                                                            Clear
-                                                        </button>
-                                                    </div>
+                                                    <button
+                                                        onClick={() => setExpandingFlows(prev => ({ ...prev, [flow.id]: false }))}
+                                                        className="text-[10px] font-bold text-[#94a3b8] hover:text-[#0f172a] transition-all uppercase tracking-tight"
+                                                    >
+                                                        Clear
+                                                    </button>
                                                 </div>
 
                                                 <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 ac-scroll">
                                                     {(() => {
                                                         const defaultEdges = (flow.edges || []).filter(e => !e.label || e.label === EDGE_LABELS.DEFAULT);
-                                                        const orderedNodes = topoOrder(flow.nodes || [], defaultEdges as any);
-                                                        const execNodes = orderedNodes.filter(n => n.type !== 'trigger');
+                                                        const orderedNodes = topoOrder((flow.nodes || []) as any, defaultEdges as any);
+                                                        const execNodes = (orderedNodes as any[]).filter(n => n.kind !== 'trigger');
 
                                                         return execNodes.map((node, idx) => {
-                                                            const log = currentLogs.find(l => l.stepId === node.id);
-                                                            const isCurrent = !isCompleted && !isFailed && !log && (idx === 0 || currentLogs.some(l => {
-                                                                const nodeIndex = execNodes.findIndex(n => n.id === l.stepId);
-                                                                return nodeIndex === idx - 1;
-                                                            }));
+                                                            const nodeEvents = currentLogs.filter(e => (e as any).nodeId === node.id);
+                                                            const startEvent = nodeEvents.find(e => e.type === 'node.started');
+                                                            const successEvent = nodeEvents.find(e => e.type === 'node.succeeded');
+                                                            const failEvent = nodeEvents.find(e => e.type === 'node.failed');
+                                                            const screenshotEvent = nodeEvents.find(e => e.type === 'artifact.screenshot') as any;
+
+                                                            const status = failEvent ? 'failed' : successEvent ? 'success' : startEvent ? 'running' : 'pending';
+
+                                                            const isCurrent = !isCompleted && !isFailed && status === 'running';
                                                             const isPaused = isCurrent && flowPaused[flow.id];
-                                                            const isDone = !!log && log.status === 'success';
+
+                                                            let message = 'Pending';
+                                                            if (status === 'running') message = 'Executing...';
+                                                            if (status === 'success') message = 'Finished step';
+                                                            if (status === 'failed') message = (failEvent as any).error?.message || 'Failed step';
 
                                                             return (
                                                                 <div key={node.id} className="flex gap-4">
                                                                     <div className="flex flex-col items-center">
                                                                         <div className="relative">
-                                                                            {isCurrent && (
+                                                                            {(isCurrent || status === 'running') && (
                                                                                 <div className={`absolute -left-1.5 top-1.5 w-3 h-3 rounded-full ${isPaused ? 'bg-amber-400' : 'bg-[#3b82f6]'} opacity-20 animate-ping`} />
                                                                             )}
-                                                                            <div className={`relative z-10 w-2 h-2 rounded-full border-2 ${log?.status === 'success' ? 'bg-[#22c55e] border-[#22c55e]' :
-                                                                                log?.status === 'failed' ? 'bg-[#ef4444] border-[#ef4444]' :
+                                                                            <div className={`relative z-10 w-2 h-2 rounded-full border-2 ${status === 'success' ? 'bg-[#22c55e] border-[#22c55e]' :
+                                                                                status === 'failed' ? 'bg-[#ef4444] border-[#ef4444]' :
                                                                                     isPaused ? 'bg-amber-500 border-amber-500' :
-                                                                                        isCurrent ? 'bg-[#3b82f6] border-[#3b82f6]' :
+                                                                                        (isCurrent || status === 'running') ? 'bg-[#3b82f6] border-[#3b82f6]' :
                                                                                             'bg-white border-[#e2e8f0]'
                                                                                 }`} />
                                                                         </div>
@@ -673,24 +714,24 @@ function App() {
                                                                     </div>
                                                                     <div className="flex-1 pb-4">
                                                                         <div className="flex items-center justify-between mb-0.5">
-                                                                            <span className={`text-[11px] font-black uppercase tracking-tight ${isCurrent ? 'text-blue-600' : 'text-slate-700'}`}>
-                                                                                {node.type}
+                                                                            <span className={`text-[11px] font-black uppercase tracking-tight ${status === 'running' ? 'text-blue-600' : 'text-slate-700'}`}>
+                                                                                {node.kind}
                                                                             </span>
-                                                                            {log && (
-                                                                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${log.status === 'success' ? 'bg-emerald-50 text-emerald-600' :
-                                                                                    log.status === 'failed' ? 'bg-red-50 text-red-600' :
+                                                                            {status !== 'pending' && (
+                                                                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${status === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                                                                                    status === 'failed' ? 'bg-red-50 text-red-600' :
                                                                                         'bg-slate-50 text-slate-500'
                                                                                     }`}>
-                                                                                    {log.status}
+                                                                                    {status}
                                                                                 </span>
                                                                             )}
                                                                         </div>
-                                                                        <p className={`text-[12px] font-bold leading-tight ${isCurrent ? 'text-slate-800' : 'text-slate-500'}`}>
-                                                                            {log ? log.message : (isCurrent ? 'Executing...' : 'Pending')}
+                                                                        <p className={`text-[12px] font-bold leading-tight ${status === 'running' ? 'text-slate-800' : 'text-slate-500'}`}>
+                                                                            {message}
                                                                         </p>
-                                                                        {log?.screenshotBase64 && (
+                                                                        {screenshotEvent?.data && (
                                                                             <div className="mt-2 rounded-lg border border-slate-200 overflow-hidden shadow-sm max-w-[140px]">
-                                                                                <img src={`data:image/png;base64,${log.screenshotBase64}`} alt="Result" className="w-full h-auto" />
+                                                                                <img src={`data:image/png;base64,${screenshotEvent.data}`} alt="Result" className="w-full h-auto" />
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -740,55 +781,54 @@ function App() {
                         </div>
                     )}
                 </div>
-            </div >
+            </div>
 
             {/* Element Markers Tab */}
-            < div className={`h-full overflow-y-auto ${activeTab === 'element-markers' ? 'block' : 'hidden'} bg-[#f8fafc]`
-            }>
-                <header className="mb-8 flex justify-between items-end">
-                    <div>
-                        <h1 className="text-[24px] font-[900] text-[#0f172a] tracking-tight leading-none mb-1 uppercase">Markers</h1>
-                        <p className="text-[12px] font-black text-[#94a3b8] uppercase tracking-widest">Page Interaction Hub</p>
-                    </div>
-                    <button
-                        className="bg-[#2563eb] text-white px-5 py-2.5 rounded-[12px] font-black text-[13px] hover:bg-[#1d4ed8] shadow-lg shadow-blue-100 transition-all active:scale-95 flex items-center gap-2"
-                        onClick={() => openMarkerEditor()}
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                        </svg>
-                        Add New
-                    </button>
-                </header>
-
-                <div className="mb-8 relative group">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94a3b8] transition-colors group-focus-within:text-[#2563eb]">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                    </div>
-                    <input
-                        value={markerSearch}
-                        onChange={(e) => setMarkerSearch(e.target.value)}
-                        className="w-full bg-white border-2 border-[#f1f5f9] rounded-[20px] pl-11 pr-12 py-3.5 text-[14px] font-bold text-[#1e293b] outline-none focus:border-[#3b82f6] focus:ring-4 focus:ring-blue-50 transition-all shadow-sm"
-                        placeholder="Search names, selectors, or domains..."
-                        type="text"
-                    />
-                    {markerSearch && (
+            <div className={`h-full overflow-y-auto ${activeTab === 'element-markers' ? 'block' : 'hidden'} bg-[#f8fafc]`}>
+                <div className="px-6 py-8 pb-32">
+                    <header className="mb-8 flex justify-between items-end">
+                        <div>
+                            <h1 className="text-[24px] font-[900] text-[#0f172a] tracking-tight leading-none mb-1 uppercase">Markers</h1>
+                            <p className="text-[12px] font-black text-[#94a3b8] uppercase tracking-widest">Page Interaction Hub</p>
+                        </div>
                         <button
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#ef4444] transition-colors"
-                            onClick={() => setMarkerSearch('')}
+                            className="bg-[#2563eb] text-white px-5 py-2.5 rounded-[12px] font-black text-[13px] hover:bg-[#1d4ed8] shadow-lg shadow-blue-100 transition-all active:scale-95 flex items-center gap-2"
+                            onClick={() => openMarkerEditor()}
                         >
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                             </svg>
+                            Add New
                         </button>
-                    )}
-                </div>
+                    </header>
 
-                {/* Modal */}
-                {
-                    markerEditorOpen && (
+                    <div className="mb-8 relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94a3b8] transition-colors group-focus-within:text-[#2563eb]">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input
+                            value={markerSearch}
+                            onChange={(e) => setMarkerSearch(e.target.value)}
+                            className="w-full bg-white border-2 border-[#f1f5f9] rounded-[20px] pl-11 pr-12 py-3.5 text-[14px] font-bold text-[#1e293b] outline-none focus:border-[#3b82f6] focus:ring-4 focus:ring-blue-50 transition-all shadow-sm"
+                            placeholder="Search names, selectors, or domains..."
+                            type="text"
+                        />
+                        {markerSearch && (
+                            <button
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#ef4444] transition-colors"
+                                onClick={() => setMarkerSearch('')}
+                            >
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Modal */}
+                    {markerEditorOpen && (
                         <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 animate-in fade-in duration-200">
                             <div className="absolute inset-0 bg-[#0f172a]/40 backdrop-blur-md" onClick={closeMarkerEditor} />
                             <div className="bg-white rounded-[32px] shadow-2xl relative z-10 w-full max-w-sm overflow-hidden border border-[#f1f5f9] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
@@ -853,12 +893,10 @@ function App() {
                                 </form>
                             </div>
                         </div>
-                    )
-                }
+                    )}
 
-                {/* List */}
-                {
-                    filteredMarkers.length > 0 ? (
+                    {/* List */}
+                    {filteredMarkers.length > 0 ? (
                         <div className="space-y-8">
                             <div className="flex items-center gap-3 px-1">
                                 <span className="text-[11px] font-black text-[#64748b] uppercase tracking-widest">
@@ -971,17 +1009,18 @@ function App() {
                                 </button>
                             )}
                         </div>
-                    )
-                }
-            </div >
-        </div >
+                    )}
+                </div>
+            </div>
+        </div>
     );
 }
 
 // Mount function
-const root = document.getElementById('app');
-if (root) {
-    createRoot(root).render(
+const container = document.getElementById('app');
+if (container) {
+    const root = createRoot(container);
+    root.render(
         <React.StrictMode>
             <App />
         </React.StrictMode>

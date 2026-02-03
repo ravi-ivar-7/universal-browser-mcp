@@ -192,7 +192,7 @@ export function useRRV3Rpc(options: UseRRV3RpcOptions = {}): UseRRV3Rpc {
             try {
                 entry.signal.removeEventListener('abort', entry.abortHandler);
             } catch {
-                // Ignore - signal may be invalid
+                // Ignore
             }
         }
     }, []);
@@ -200,20 +200,22 @@ export function useRRV3Rpc(options: UseRRV3RpcOptions = {}): UseRRV3Rpc {
     const rejectAllPending = useCallback(
         (reason: string): void => {
             const error = new Error(reason);
-            for (const [requestId, entry] of pendingRequestsRef.current) {
+            const pending = pendingRequestsRef.current;
+            for (const [requestId, entry] of pending) {
                 cleanupPendingRequest(entry);
                 entry.reject(error);
-                pendingRequestsRef.current.delete(requestId);
             }
+            pending.clear();
             setPendingCount(0);
         },
         [cleanupPendingRequest],
     );
 
-    // Forward declarations for mutual recursion
-    const connectRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
+    // Re-use refs for stable function identities
+    const connectRef = useRef<(reason?: string) => Promise<chrome.runtime.Port | null>>(async () => null);
+    const disconnectRef = useRef<(reason?: string) => void>(() => { });
     const requestRef = useRef<UseRRV3Rpc['request']>(async () => {
-        throw new Error('Not initialized');
+        throw new Error('RPC client not initialized');
     });
 
     const rehydrateSubscriptions = useCallback(async (): Promise<void> => {
@@ -310,19 +312,24 @@ export function useRRV3Rpc(options: UseRRV3RpcOptions = {}): UseRRV3Rpc {
 
     // ==================== Public Methods ====================
 
-    const connect = useCallback(async (): Promise<boolean> => {
-        if (isReady) return true;
-        if (connectPromiseRef.current) return connectPromiseRef.current;
+    const connectInternal = useCallback(async (): Promise<chrome.runtime.Port | null> => {
+        if (portRef.current) return portRef.current;
 
-        connectPromiseRef.current = (async () => {
+        // Return existing connection promise if one is already in flight.
+        // We cast because the promise will eventually return the port or null.
+        if (connectPromiseRef.current) {
+            await connectPromiseRef.current;
+            return portRef.current;
+        }
+
+        const promise = (async () => {
             manualDisconnectRef.current = false;
             setConnecting(true);
             setError(null);
 
             try {
                 if (typeof chrome === 'undefined' || !chrome.runtime?.connect) {
-                    setError('chrome.runtime.connect not available');
-                    return false;
+                    throw new Error('chrome.runtime.connect not available');
                 }
 
                 const p = chrome.runtime.connect({ name: RR_V3_PORT_NAME });
@@ -339,12 +346,13 @@ export function useRRV3Rpc(options: UseRRV3RpcOptions = {}): UseRRV3Rpc {
                 p.onDisconnect.addListener(handlePortDisconnect);
 
                 setConnected(true);
-
                 void rehydrateSubscriptions();
 
                 return true;
             } catch (error) {
-                setError(`Connection failed: ${toErrorMessage(error)}`);
+                const msg = toErrorMessage(error);
+                setError(`Connection failed: ${msg}`);
+                portRef.current = null;
                 return false;
             } finally {
                 setConnecting(false);
@@ -352,13 +360,15 @@ export function useRRV3Rpc(options: UseRRV3RpcOptions = {}): UseRRV3Rpc {
             }
         })();
 
-        return connectPromiseRef.current;
-    }, [isReady, setError, handlePortMessage, handlePortDisconnect, setConnected, rehydrateSubscriptions]);
+        connectPromiseRef.current = promise;
+        await promise;
+        return portRef.current;
+    }, [setError, handlePortMessage, handlePortDisconnect, setConnected, rehydrateSubscriptions]);
 
-    // Update ref
-    connectRef.current = connect;
 
-    const disconnect = useCallback(
+    connectRef.current = connectInternal as any;
+
+    const disconnectInternal = useCallback(
         (reason?: string): void => {
             manualDisconnectRef.current = true;
 
@@ -385,26 +395,28 @@ export function useRRV3Rpc(options: UseRRV3RpcOptions = {}): UseRRV3Rpc {
                 }
             }
         },
-        [setConnected, rejectAllPending, handlePortMessage, handlePortDisconnect],
+        [rejectAllPending, handlePortMessage, handlePortDisconnect],
     );
 
-    const ensureConnected = useCallback(async (): Promise<boolean> => {
-        if (isReady) return true;
-        return connect();
-    }, [isReady, connect]);
+    const ensureConnectedInternal = useCallback(async (): Promise<chrome.runtime.Port> => {
+        const p = await connectInternal();
+        if (!p) {
+            throw new Error(`RR V3 RPC: Failed to connect. ${lastError || 'Unknown error'}`);
+        }
+        return p;
+    }, [connectInternal, lastError]);
 
-    const request = useCallback(
+
+    // ==================== Stable Logic Dispatchers ====================
+
+    // Logic for request
+    const requestLogic = useCallback(
         async <T extends JsonValue = JsonValue>(
             method: RpcMethod,
             params?: JsonObject,
             reqOptions: RpcRequestOptions = {},
         ): Promise<T> => {
-            const ready = await ensureConnected();
-            const p = portRef.current;
-
-            if (!ready || !p) {
-                throw new Error('RR V3 RPC: not connected');
-            }
+            const p = await ensureConnectedInternal();
 
             const timeoutMs = reqOptions.timeoutMs ?? DEFAULT_TIMEOUT_MS;
             const { signal } = reqOptions;
@@ -455,12 +467,44 @@ export function useRRV3Rpc(options: UseRRV3RpcOptions = {}): UseRRV3Rpc {
                 }
             });
         },
-        [ensureConnected, DEFAULT_TIMEOUT_MS, cleanupPendingRequest],
+        [ensureConnectedInternal, DEFAULT_TIMEOUT_MS, cleanupPendingRequest],
     );
 
-    // Update ref
-    requestRef.current = request;
+    useEffect(() => {
+        requestRef.current = requestLogic as any;
+    }, [requestLogic]);
 
+    // Update stable connect ref
+    useEffect(() => {
+        connectRef.current = connectInternal;
+    }, [connectInternal]);
+
+    // Update stable disconnect ref
+    useEffect(() => {
+        disconnectRef.current = disconnectInternal;
+    }, [disconnectInternal]);
+
+    // Public stable wrappers
+    const request = useCallback<UseRRV3Rpc['request']>(
+        async (...args) => requestRef.current!(...args),
+        [],
+    );
+
+    const connect = useCallback(async () => {
+        const p = await connectRef.current!();
+        return !!p;
+    }, []);
+
+    const disconnect = useCallback((reason?: string) => {
+        disconnectRef.current!(reason);
+    }, []);
+
+    const ensureConnected = useCallback(async () => {
+        const p = await connectRef.current!();
+        return !!p;
+    }, []);
+
+    // Subscribe / Unsubscribe / onEvent
     const subscribe = useCallback(
         async (runId: RunId | null = null): Promise<boolean> => {
             desiredSubscriptionsRef.current.add(runId);
@@ -502,31 +546,64 @@ export function useRRV3Rpc(options: UseRRV3RpcOptions = {}): UseRRV3Rpc {
 
     // ==================== Lifecycle ====================
 
+    // Use refs to ensure the lifecycle effect doesn't re-run on every render
+    const autoConnectRef = useRef(options.autoConnect);
+    autoConnectRef.current = options.autoConnect;
+
     useEffect(() => {
-        if (options.autoConnect) {
-            void ensureConnected();
+        // Connect on mount if autoConnect is enabled
+        if (autoConnectRef.current) {
+            // Use a small delay to avoid React Strict Mode double-mount issues
+            const timeoutId = setTimeout(() => {
+                void connectRef.current?.();
+            }, 10);
+
+            return () => clearTimeout(timeoutId);
         }
+    }, []); // Empty deps - only run on true mount
 
+    // Separate cleanup effect that only runs on true unmount
+    useEffect(() => {
         return () => {
-            disconnect('Component unmounted');
+            // Only disconnect if we're truly unmounting, not during Strict Mode re-render
+            disconnectRef.current?.('Component unmounted');
         };
-    }, [options.autoConnect, ensureConnected, disconnect]);
+    }, []); // Empty deps - only run cleanup on true unmount
 
-    return {
-        connected,
-        connecting,
-        reconnecting,
-        reconnectAttempts,
-        lastError,
-        isReady,
-        pendingCount,
-        subscribedRunIds,
-        connect,
-        disconnect,
-        ensureConnected,
-        request,
-        subscribe,
-        unsubscribe,
-        onEvent,
-    };
+    return useMemo(
+        () => ({
+            connected,
+            connecting,
+            reconnecting,
+            reconnectAttempts,
+            lastError,
+            isReady,
+            pendingCount,
+            subscribedRunIds,
+            connect,
+            disconnect,
+            ensureConnected,
+            request,
+            subscribe,
+            unsubscribe,
+            onEvent,
+        }),
+        [
+            connected,
+            connecting,
+            reconnecting,
+            reconnectAttempts,
+            lastError,
+            isReady,
+            pendingCount,
+            subscribedRunIds,
+            connect,
+            disconnect,
+            ensureConnected,
+            request,
+            subscribe,
+            unsubscribe,
+            onEvent,
+        ],
+    );
 }

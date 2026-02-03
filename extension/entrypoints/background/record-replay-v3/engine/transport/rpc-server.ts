@@ -128,6 +128,7 @@ export class RpcServer {
     };
 
     this.connections.set(connId, connection);
+    console.log(`[RpcServer] New connection: ${connId} (total: ${this.connections.size})`);
 
     port.onMessage.addListener((msg) => this.handleMessage(connId, msg));
     port.onDisconnect.addListener(() => this.handleDisconnect(connId));
@@ -137,15 +138,24 @@ export class RpcServer {
    * 处理消息
    */
   private handleMessage = async (connId: string, msg: unknown): Promise<void> => {
-    if (!isRpcRequest(msg)) return;
+    if (!isRpcRequest(msg)) {
+      console.warn(`[RpcServer] [${connId}] Invalid RPC message:`, msg);
+      return;
+    }
 
     const conn = this.connections.get(connId);
-    if (!conn) return;
+    if (!conn) {
+      console.warn(`[RpcServer] [${connId}] Received message for closed connection`);
+      return;
+    }
+
+    // console.log(`[RpcServer] [${connId}] Request: ${msg.method} (${msg.requestId})`);
 
     try {
       const result = await this.handleRequest(msg, conn);
       conn.port.postMessage(createRpcResponseOk(msg.requestId, result));
     } catch (e) {
+      console.error(`[RpcServer] [${connId}] Error handling ${msg.method}:`, e);
       const error = e instanceof Error ? e.message : String(e);
       conn.port.postMessage(createRpcResponseErr(msg.requestId, error));
     }
@@ -156,6 +166,7 @@ export class RpcServer {
    */
   private handleDisconnect = (connId: string): void => {
     this.connections.delete(connId);
+    console.log(`[RpcServer] DC: ${connId} (remaining: ${this.connections.size})`);
   };
 
   /**
@@ -461,7 +472,7 @@ export class RpcServer {
       const triggerIds = linkedTriggers.map((t) => t.id).join(', ');
       throw new Error(
         `Cannot delete flow "${flowId}": it has ${linkedTriggers.length} linked trigger(s): ${triggerIds}. ` +
-          `Delete the trigger(s) first.`,
+        `Delete the trigger(s) first.`,
       );
     }
 
@@ -472,7 +483,7 @@ export class RpcServer {
       const runIds = linkedQueuedRuns.map((r) => r.id).join(', ');
       throw new Error(
         `Cannot delete flow "${flowId}": it has ${linkedQueuedRuns.length} queued run(s): ${runIds}. ` +
-          `Cancel the run(s) first or wait for them to complete.`,
+        `Cancel the run(s) first or wait for them to complete.`,
       );
     }
 

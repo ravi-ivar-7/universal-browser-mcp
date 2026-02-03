@@ -94,6 +94,8 @@ export interface FlowV3 {
     tags?: string[];
     /** 绑定规则 */
     bindings?: FlowBinding[];
+    /** 关联域名（用于 UI 显示） */
+    domain?: string;
   };
 }
 

@@ -12,6 +12,8 @@
 import type { UnixMillis } from './domain/json';
 import type { RunId } from './domain/ids';
 import { RR_ERROR_CODES, createRRError, type RRError } from './domain/errors';
+import type { RunRecordV3 } from './domain/events';
+import { enqueueRun } from './engine/queue/enqueue-run';
 
 import type { StoragePort } from './engine/storage/storage-port';
 import { StorageBackedEventsBus, type EventsBus } from './engine/transport/events-bus';
@@ -47,6 +49,9 @@ import {
   registerV2ReplayNodesAsV3Nodes,
   DEFAULT_V2_EXCLUDE_LIST,
 } from './engine/plugins/register-v2-replay-nodes';
+import { RecorderManager } from './recording/recorder-manager';
+import { recordingSession } from './recording/session-manager';
+import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 
 import { acquireKeepalive } from '../keepalive-manager';
 import { createStoragePort } from './index';
@@ -136,7 +141,8 @@ async function resolveRunTab(input: {
   }
 
   const tabId = await createEphemeralTab(input.logger);
-  return { tabId, shouldClose: true };
+  // Keep tab open for user inspection
+  return { tabId, shouldClose: false };
 }
 
 /**
@@ -202,7 +208,14 @@ function createDefaultRunExecutor(deps: {
     // 1. 获取 RunRecord
     const run = await deps.storage.runs.get(runId);
     if (!run) {
-      deps.logger.warn(`[RR-V3] RunRecord not found for queue item "${runId}", skipping execution`);
+      const msg = `[RR-V3] RunRecord not found for queue item "${runId}"`;
+      deps.logger.error(msg);
+      // Explicitly fail the run so the UI stops waiting
+      await failRun(
+        deps,
+        runId,
+        createRRError(RR_ERROR_CODES.INTERNAL, msg),
+      );
       return;
     }
 
@@ -412,9 +425,12 @@ export async function bootstrapV3(): Promise<V3Runtime> {
       await recoverFromCrash({ storage, events, ownerId, now, logger });
 
       // 11) Start components
+      rpcServer.start();
       scheduler.start();
       await triggers.start();
-      rpcServer.start();
+
+      // 12) Recorder Initialization
+      await RecorderManager.init();
 
       logger.info('[RR-V3] Bootstrap complete');
     } catch (e) {
@@ -437,7 +453,7 @@ export async function bootstrapV3(): Promise<V3Runtime> {
         logger.info('[RR-V3] Stopping...');
         // Stop order: RPC first (block new requests) -> triggers -> scheduler -> lease -> debug
         rpcServer.stop();
-        await triggers.stop().catch(() => {});
+        await triggers.stop().catch(() => { });
         scheduler.stop();
         leaseManager.dispose();
         debugController.stop();
@@ -445,6 +461,131 @@ export async function bootstrapV3(): Promise<V3Runtime> {
         logger.info('[RR-V3] Stopped');
       },
     };
+
+    // 13) Global Message Listener for Recording Commands (UI Compatibility)
+    // Registered after runtime is set to ensure handlers (like RecorderManager) can access it
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      switch (message?.type) {
+        case BACKGROUND_MESSAGE_TYPES.RR_START_RECORDING: {
+          RecorderManager.start(message.meta)
+            .then(sendResponse)
+            .catch((e: unknown) => sendResponse({ success: false, error: errorMessage(e) }));
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_STOP_RECORDING: {
+          RecorderManager.stop()
+            .then(sendResponse)
+            .catch((e: unknown) => sendResponse({ success: false, error: errorMessage(e) }));
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_PAUSE_RECORDING: {
+          RecorderManager.pause()
+            .then(sendResponse)
+            .catch((e: unknown) => sendResponse({ success: false, error: errorMessage(e) }));
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_RESUME_RECORDING: {
+          RecorderManager.resume()
+            .then(sendResponse)
+            .catch((e: unknown) => sendResponse({ success: false, error: errorMessage(e) }));
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_GET_RECORDING_STATUS: {
+          const status = recordingSession.getStatus();
+          const session = recordingSession.getSession();
+          sendResponse({
+            success: true,
+            status,
+            sessionId: session?.sessionId,
+            originTabId: session?.originTabId,
+            flow: recordingSession.getFlow(),
+          });
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_LIST_FLOWS: {
+          storage.flows
+            .list()
+            .then((flows) => {
+              sendResponse({ success: true, flows });
+            })
+            .catch((e: unknown) => sendResponse({ success: false, error: errorMessage(e) }));
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_DELETE_FLOW: {
+          storage.flows
+            .delete(message.flowId)
+            .then(() => sendResponse({ success: true }))
+            .catch((e: unknown) => sendResponse({ success: false, error: errorMessage(e) }));
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_RUN_FLOW: {
+          enqueueRun(
+            {
+              storage,
+              events,
+              scheduler,
+              now: () => Date.now(),
+            },
+            {
+              flowId: message.flowId,
+              args: message.args,
+              priority: 10,
+              maxAttempts: 1,
+            },
+          )
+            .then((result) => {
+              sendResponse({ success: true, result });
+            })
+            .catch((e: unknown) => sendResponse({ success: false, error: errorMessage(e) }));
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_STOP_RUN: {
+          const runner = runners.get(message.runId);
+          if (runner) {
+            runner.cancel();
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: 'Run not found or already finished' });
+          }
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_PAUSE_RUN: {
+          const runner = runners.get(message.runId);
+          if (runner) {
+            runner.pause();
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: 'Run not found' });
+          }
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_RESUME_RUN: {
+          const runner = runners.get(message.runId);
+          if (runner) {
+            runner.resume();
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: 'Run not found' });
+          }
+          return true;
+        }
+        case BACKGROUND_MESSAGE_TYPES.RR_GET_ACTIVE_RUNS: {
+          const activeRunRecords = runners.list().map((id: string) => {
+            const runner = runners.get(id);
+            return {
+              runId: id,
+              flowId: runner?.state?.flowId || '',
+              status: runner?.state?.status || 'unknown',
+              paused: runner?.state?.paused || false,
+            };
+          });
+          sendResponse({ success: true, runs: activeRunRecords });
+          return true;
+        }
+        default:
+          return false;
+      }
+    });
 
     return runtime;
   })().finally(() => {
