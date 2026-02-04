@@ -1,6 +1,6 @@
 /**
- * @fileoverview RunRunner 接口和实现
- * @description 定义和实现单个 Run 的顺序执行器
+ * @fileoverview RunRunner Interface and Implementation
+ * @description Defines and implements the sequential executor for a single Run
  */
 
 import type { NodeId, RunId } from '../../domain/ids';
@@ -40,78 +40,78 @@ const MAX_STEP_COUNT = 1000;
 // ==================== Types ====================
 
 /**
- * RunRunner 运行时状态
+ * RunRunner Runtime State
  */
 export interface RunnerRuntimeState {
   /** Run ID */
   runId: RunId;
   /** Flow ID */
   flowId: string;
-  /** 当前节点 ID */
+  /** Current Node ID */
   currentNodeId: NodeId | null;
-  /** 当前尝试次数 */
+  /** Current Attempt Count */
   attempt: number;
-  /** 变量表 */
+  /** Variables Table */
   vars: Record<string, JsonValue>;
-  /** 是否暂停 */
+  /** Paused Flag */
   paused: boolean;
-  /** 是否取消 */
+  /** Canceled Flag */
   canceled: boolean;
-  /** 执行状态 */
+  /** Execution Status */
   status: 'running' | 'paused' | 'canceled' | 'succeeded' | 'failed';
 }
 
 /**
- * RunRunner 配置
+ * RunRunner Configuration
  */
 export interface RunnerConfig {
-  /** Flow 快照 */
+  /** Flow Snapshot */
   flow: FlowV3;
   /** Tab ID */
   tabId: number;
-  /** 初始参数 */
+  /** Initial Args */
   args?: JsonObject;
-  /** 起始节点 ID */
+  /** Start Node ID */
   startNodeId?: NodeId;
-  /** 调试配置 */
+  /** Debug Configuration */
   debug?: { breakpoints?: NodeId[]; pauseOnStart?: boolean };
-  /** 是否捕获网络流量 */
+  /** Whether to capture network traffic */
   captureNetwork?: boolean;
 }
 
 /**
- * RunRunner 接口
+ * RunRunner Interface
  */
 export interface RunRunner {
   /** Run ID */
   readonly runId: RunId;
-  /** 当前状态 */
+  /** Current State */
   readonly state: RunnerRuntimeState;
-  /** 订阅事件 */
+  /** Subscribe to events */
   onEvent(listener: (event: RunEvent) => void): Unsubscribe;
-  /** 开始执行 */
+  /** Start execution */
   start(): Promise<RunResult>;
-  /** 暂停执行 */
+  /** Pause execution */
   pause(): void;
-  /** 恢复执行 */
+  /** Resume execution */
   resume(): void;
-  /** 取消执行 */
+  /** Cancel execution */
   cancel(reason?: string): void;
-  /** 获取变量值 */
+  /** Get variable value */
   getVar(name: string): JsonValue | undefined;
-  /** 设置变量值 */
+  /** Set variable value */
   setVar(name: string, value: JsonValue): void;
 }
 
 /**
- * RunRunner 工厂接口
+ * RunRunner Factory Interface
  */
 export interface RunRunnerFactory {
   create(runId: RunId, config: RunnerConfig): RunRunner;
 }
 
 /**
- * RunRunner 工厂依赖
+ * RunRunner Factory Dependencies
  */
 export interface RunRunnerFactoryDeps {
   storage: StoragePort;
@@ -236,7 +236,7 @@ class SerialQueue {
 // ==================== Factory ====================
 
 /**
- * 创建 NotImplemented 的 RunRunnerFactory
+ * Create NotImplemented RunRunnerFactory
  */
 export function createNotImplementedRunnerFactory(): RunRunnerFactory {
   return {
@@ -247,7 +247,7 @@ export function createNotImplementedRunnerFactory(): RunRunnerFactory {
 }
 
 /**
- * 创建 RunRunner 工厂
+ * Create RunRunner Factory
  */
 export function createRunRunnerFactory(deps: RunRunnerFactoryDeps): RunRunnerFactory {
   const plugins = deps.plugins ?? getPluginRegistry();

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Queue 模块导出入口
+ * @fileoverview Queue Module Export Entry Point
  */
 
 export * from './queue';

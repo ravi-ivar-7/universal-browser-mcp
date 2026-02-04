@@ -1,6 +1,6 @@
 /**
- * @fileoverview 工件（Artifacts）接口
- * @description 定义截图等工件的获取和存储接口
+ * @fileoverview Artifacts Interface
+ * @description Defines interfaces for capturing and storing artifacts like screenshots
  */
 
 import type { NodeId, RunId } from '../../domain/ids';
@@ -8,19 +8,19 @@ import type { RRError } from '../../domain/errors';
 import { RR_ERROR_CODES, createRRError } from '../../domain/errors';
 
 /**
- * 截图结果
+ * Screenshot Result
  */
 export type ScreenshotResult = { ok: true; base64: string } | { ok: false; error: RRError };
 
 /**
- * 工件服务接口
- * @description 提供工件获取和存储功能
+ * Artifact Service Interface
+ * @description Provides artifact capture and storage functionality
  */
 export interface ArtifactService {
   /**
-   * 截取页面截图
+   * Capture Page Screenshot
    * @param tabId Tab ID
-   * @param options 截图选项
+   * @param options Screenshot Options
    */
   screenshot(
     tabId: number,
@@ -31,11 +31,11 @@ export interface ArtifactService {
   ): Promise<ScreenshotResult>;
 
   /**
-   * 保存截图
+   * Save Screenshot
    * @param runId Run ID
    * @param nodeId Node ID
-   * @param base64 截图数据
-   * @param filename 文件名（可选）
+   * @param base64 Screenshot Data
+   * @param filename Filename (optional)
    */
   saveScreenshot(
     runId: RunId,
@@ -46,8 +46,8 @@ export interface ArtifactService {
 }
 
 /**
- * 创建 NotImplemented 的 ArtifactService
- * @description Phase 0-1 占位实现
+ * Create NotImplemented ArtifactService
+ * @description Phase 0-1 Placeholder Implementation
  */
 export function createNotImplementedArtifactService(): ArtifactService {
   return {
@@ -65,8 +65,8 @@ export function createNotImplementedArtifactService(): ArtifactService {
 }
 
 /**
- * 创建基于 chrome.tabs.captureVisibleTab 的 ArtifactService
- * @description 使用 Chrome API 截取可见标签页
+ * Create chrome.tabs.captureVisibleTab based ArtifactService
+ * @description Captures visible tab using Chrome API
  */
 export function createChromeArtifactService(): ArtifactService {
   // In-memory storage for screenshots (could be replaced with IndexedDB)
@@ -133,14 +133,14 @@ export function createChromeArtifactService(): ArtifactService {
 }
 
 /**
- * 工件策略执行器
- * @description 根据策略配置决定是否获取工件
+ * Artifact Policy Executor
+ * @description Decides whether to capture artifacts based on policy configuration
  */
 export interface ArtifactPolicyExecutor {
   /**
-   * 执行截图策略
-   * @param policy 截图策略
-   * @param context 上下文
+   * Execute Screenshot Policy
+   * @param policy Screenshot Policy
+   * @param context Context
    */
   executeScreenshotPolicy(
     policy: 'never' | 'onFailure' | 'always',
@@ -155,25 +155,25 @@ export interface ArtifactPolicyExecutor {
 }
 
 /**
- * 创建默认的工件策略执行器
+ * Create Default Artifact Policy Executor
  */
 export function createArtifactPolicyExecutor(service: ArtifactService): ArtifactPolicyExecutor {
   return {
     executeScreenshotPolicy: async (policy, context) => {
-      // 根据策略决定是否截图
+      // Decide whether to capture based on policy
       const shouldCapture = policy === 'always' || (policy === 'onFailure' && context.failed);
 
       if (!shouldCapture) {
         return { captured: false };
       }
 
-      // 截图
+      // Capture screenshot
       const result = await service.screenshot(context.tabId);
       if (!result.ok) {
         return { captured: false, error: result.error };
       }
 
-      // 保存（如果指定了文件名）
+      // Save (if filename is provided)
       if (context.saveAs) {
         const saveResult = await service.saveScreenshot(
           context.runId,

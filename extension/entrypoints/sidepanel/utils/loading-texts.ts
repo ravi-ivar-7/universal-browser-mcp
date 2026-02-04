@@ -1,6 +1,6 @@
 /**
- * 随机 Loading 文案
- * 用于 TimelineStatusStep 组件展示趣味等待提示
+ * Random Loading Text
+ * Used for TimelineStatusStep component to show fun waiting prompts
  */
 
 export const RANDOM_LOADING_TEXTS = [
@@ -47,7 +47,7 @@ export const RANDOM_LOADING_TEXTS = [
 ];
 
 /**
- * 获取随机 Loading 文案
+ * Get random loading text
  */
 export function getRandomLoadingText(): string {
   return RANDOM_LOADING_TEXTS[Math.floor(Math.random() * RANDOM_LOADING_TEXTS.length)];

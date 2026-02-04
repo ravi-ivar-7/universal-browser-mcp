@@ -1,5 +1,5 @@
 /**
- * @fileoverview Triggers 模块导出入口
+ * @fileoverview Triggers Module Export Entry
  */
 
 export * from './trigger-handler';

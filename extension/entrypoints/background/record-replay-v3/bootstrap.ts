@@ -3,10 +3,10 @@
  * @description
  * Wires storage, events, scheduler, triggers and RPC for the MV3 background service worker.
  *
- * 设计说明：
- * - 必须先执行 recoverFromCrash() 再启动 scheduler.start()
- * - 使用全局单例 keepalive-manager 避免多个控制器冲突
- * - RunExecutor 使用 RunRunner 执行实际的 Flow
+ * Design Notes:
+ * - recoverFromCrash() must be executed before scheduler.start()
+ * - Use global singleton keepalive-manager to avoid controller conflicts
+ * - RunExecutor uses RunRunner to execute the actual Flow
  */
 
 import type { UnixMillis } from './domain/json';
@@ -61,7 +61,7 @@ import { createStoragePort } from './index';
 type Logger = Pick<Console, 'debug' | 'info' | 'warn' | 'error'>;
 
 /**
- * V3 运行时句柄
+ * V3 Runtime Handle
  */
 export interface V3Runtime {
   ownerId: string;
@@ -121,8 +121,8 @@ async function safeRemoveTab(tabId: number, logger: Logger): Promise<void> {
 }
 
 /**
- * 解析运行 Run 所需的 Tab ID
- * 优先级: run.tabId > queue.tabId > trigger.sourceTabId > 创建新 Tab
+ * Resolve Tab ID required for Run execution
+ * Priority: run.tabId > queue.tabId > trigger.sourceTabId > Create new Tab
  */
 async function resolveRunTab(input: {
   runTabId?: number;
@@ -146,8 +146,8 @@ async function resolveRunTab(input: {
 }
 
 /**
- * 将 Run 标记为失败
- * 注意：会重新读取最新的 RunRecord 以获取正确的 startedAt
+ * Mark Run as failed
+ * Note: re-reads the latest RunRecord to get the correct startedAt
  */
 async function failRun(
   deps: { storage: StoragePort; events: EventsBus; now: () => UnixMillis; logger: Logger },
@@ -156,7 +156,7 @@ async function failRun(
 ): Promise<void> {
   const finishedAt = deps.now();
 
-  // 重新获取最新的 run 记录以获取正确的 startedAt
+  // Re-fetch latest run record for correct startedAt
   let startedAt = finishedAt;
   try {
     const latestRun = await deps.storage.runs.get(runId);
@@ -191,8 +191,8 @@ async function failRun(
 // ==================== Run Executor ====================
 
 /**
- * 创建默认的 RunExecutor
- * 使用 RunRunner 执行 Flow
+ * Create default RunExecutor
+ * Execute Flow using RunRunner
  */
 function createDefaultRunExecutor(deps: {
   storage: StoragePort;
@@ -205,7 +205,7 @@ function createDefaultRunExecutor(deps: {
   return async (item: RunQueueItem): Promise<void> => {
     const runId = item.id;
 
-    // 1. 获取 RunRecord
+    // 1. Get RunRecord
     const run = await deps.storage.runs.get(runId);
     if (!run) {
       const msg = `[RR-V3] RunRecord not found for queue item "${runId}"`;
@@ -219,7 +219,7 @@ function createDefaultRunExecutor(deps: {
       return;
     }
 
-    // 2. 获取 Flow
+    // 2. Get Flow
     const flow = await deps.storage.flows.get(item.flowId);
     if (!flow) {
       await failRun(
@@ -230,7 +230,7 @@ function createDefaultRunExecutor(deps: {
       return;
     }
 
-    // 3. 解析 Tab ID
+    // 3. Resolve Tab ID
     const { tabId, shouldClose } = await resolveRunTab({
       runTabId: run.tabId,
       queueTabId: item.tabId,
@@ -238,7 +238,7 @@ function createDefaultRunExecutor(deps: {
       logger: deps.logger,
     });
 
-    // 4. 同步 attempt 到 RunRecord
+    // 4. Sync attempt to RunRecord
     try {
       await deps.storage.runs.patch(runId, {
         attempt: item.attempt,
@@ -249,7 +249,7 @@ function createDefaultRunExecutor(deps: {
       deps.logger.debug(`[RR-V3] Failed to patch run "${runId}" attempt/tabId:`, e);
     }
 
-    // 5. 执行 Run
+    // 5. Execute Run
     let runner;
     try {
       runner = deps.runnerFactory.create(runId, {
@@ -260,7 +260,7 @@ function createDefaultRunExecutor(deps: {
         debug: item.debug,
       });
 
-      // 注册到 RunnerRegistry，供 DebugController 和 RPC 使用
+      // Register to RunnerRegistry for DebugController and RPC usage
       deps.runners.register(runId, runner);
 
       await runner.start();
@@ -271,12 +271,12 @@ function createDefaultRunExecutor(deps: {
         createRRError(RR_ERROR_CODES.INTERNAL, `Executor crashed: ${errorMessage(e)}`),
       );
     } finally {
-      // 6. 注销 Runner
+      // 6. Unregister Runner
       if (runner) {
         deps.runners.unregister(runId);
       }
 
-      // 7. 清理临时 Tab
+      // 7. Cleanup ephemeral Tab
       if (shouldClose) {
         await safeRemoveTab(tabId, deps.logger);
       }
@@ -287,8 +287,8 @@ function createDefaultRunExecutor(deps: {
 // ==================== Bootstrap ====================
 
 /**
- * 启动 RR-V3 运行时
- * @returns 运行时句柄
+ * Bootstrap RR-V3 Runtime
+ * @returns Runtime handle
  */
 export async function bootstrapV3(): Promise<V3Runtime> {
   if (runtime) return runtime;
@@ -596,14 +596,14 @@ export async function bootstrapV3(): Promise<V3Runtime> {
 }
 
 /**
- * 获取当前运行时（如果已启动）
+ * Get current runtime (if started)
  */
 export function getV3Runtime(): V3Runtime | null {
   return runtime;
 }
 
 /**
- * 检查 V3 是否已启动
+ * Check if V3 is running
  */
 export function isV3Running(): boolean {
   return runtime !== null;

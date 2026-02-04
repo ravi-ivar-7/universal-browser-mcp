@@ -17,7 +17,7 @@ interface ConsoleToolParams {
   maxMessages?: number;
   // New parameters
   mode?: ConsoleMode;
-  buffer?: boolean; // mode="buffer" 的别名
+  buffer?: boolean; // alias for mode="buffer"
   clear?: boolean; // Clear before reading
   clearAfterRead?: boolean; // Clear after reading (mcp-tools.js style)
   pattern?: string;
@@ -75,7 +75,7 @@ function parseRegexPattern(pattern?: string): RegExp | undefined {
   if (typeof pattern !== 'string') return undefined;
   const trimmed = pattern.trim();
   if (!trimmed) return undefined;
-  // 支持 /pattern/flags 语法
+  // Supports /pattern/flags syntax
   const match = trimmed.match(/^\/(.+)\/([gimsuy]*)$/);
   try {
     return match ? new RegExp(match[1], match[2]) : new RegExp(trimmed);

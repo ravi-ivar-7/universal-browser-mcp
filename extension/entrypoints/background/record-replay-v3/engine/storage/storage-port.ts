@@ -1,6 +1,6 @@
 /**
- * @fileoverview StoragePort 接口定义
- * @description 定义 Storage 层的抽象接口，用于依赖注入
+ * @fileoverview StoragePort Interface Definition
+ * @description Defines abstract interface for Storage layer, used for dependency injection
  */
 
 import type { FlowId, RunId, TriggerId } from '../../domain/ids';
@@ -11,107 +11,107 @@ import type { TriggerSpec } from '../../domain/triggers';
 import type { RunQueue } from '../queue/queue';
 
 /**
- * FlowsStore 接口
+ * FlowsStore Interface
  */
 export interface FlowsStore {
-  /** 列出所有 Flow */
+  /** List all Flows */
   list(): Promise<FlowV3[]>;
-  /** 获取单个 Flow */
+  /** Get single Flow */
   get(id: FlowId): Promise<FlowV3 | null>;
-  /** 保存 Flow */
+  /** Save Flow */
   save(flow: FlowV3): Promise<void>;
-  /** 删除 Flow */
+  /** Delete Flow */
   delete(id: FlowId): Promise<void>;
 }
 
 /**
- * RunsStore 接口
+ * RunsStore Interface
  */
 export interface RunsStore {
-  /** 列出所有 Run 记录 */
+  /** List all Run records */
   list(): Promise<RunRecordV3[]>;
-  /** 获取单个 Run 记录 */
+  /** Get single Run record */
   get(id: RunId): Promise<RunRecordV3 | null>;
-  /** 保存 Run 记录 */
+  /** Save Run record */
   save(record: RunRecordV3): Promise<void>;
-  /** 部分更新 Run 记录 */
+  /** Partially update Run record */
   patch(id: RunId, patch: Partial<RunRecordV3>): Promise<void>;
 }
 
 /**
- * EventsStore 接口
- * @description seq 分配必须由 append() 内部原子完成
+ * EventsStore Interface
+ * @description seq allocation must be done atomically inside append()
  */
 export interface EventsStore {
   /**
-   * 追加事件并原子分配 seq
-   * @description 在单个事务中：读取 RunRecordV3.nextSeq -> 写入事件 -> 递增 nextSeq
-   * @param event 事件输入（不含 seq）
-   * @returns 完整事件（含分配的 seq 和 ts）
+   * Append event and atomically allocate seq
+   * @description In single transaction: read RunRecordV3.nextSeq -> write event -> increment nextSeq
+   * @param event Event input (excluding seq)
+   * @returns Complete event (including allocated seq and ts)
    */
   append(event: RunEventInput): Promise<RunEvent>;
 
   /**
-   * 列出事件
+   * List events
    * @param runId Run ID
-   * @param opts 查询选项
+   * @param opts Query options
    */
   list(runId: RunId, opts?: { fromSeq?: number; limit?: number }): Promise<RunEvent[]>;
 }
 
 /**
- * PersistentVarsStore 接口
+ * PersistentVarsStore Interface
  */
 export interface PersistentVarsStore {
-  /** 获取持久化变量 */
+  /** Get persistent variable */
   get(key: PersistentVariableName): Promise<PersistentVarRecord | undefined>;
-  /** 设置持久化变量 */
+  /** Set persistent variable */
   set(
     key: PersistentVariableName,
     value: PersistentVarRecord['value'],
   ): Promise<PersistentVarRecord>;
-  /** 删除持久化变量 */
+  /** Delete persistent variable */
   delete(key: PersistentVariableName): Promise<void>;
-  /** 列出持久化变量 */
+  /** List persistent variables */
   list(prefix?: PersistentVariableName): Promise<PersistentVarRecord[]>;
 }
 
 /**
- * TriggersStore 接口
+ * TriggersStore Interface
  */
 export interface TriggersStore {
-  /** 列出所有触发器 */
+  /** List all triggers */
   list(): Promise<TriggerSpec[]>;
-  /** 获取单个触发器 */
+  /** Get single trigger */
   get(id: TriggerId): Promise<TriggerSpec | null>;
-  /** 保存触发器 */
+  /** Save trigger */
   save(spec: TriggerSpec): Promise<void>;
-  /** 删除触发器 */
+  /** Delete trigger */
   delete(id: TriggerId): Promise<void>;
 }
 
 /**
- * StoragePort 接口
- * @description 聚合所有存储接口，用于依赖注入
+ * StoragePort Interface
+ * @description Aggregates all storage interfaces for dependency injection
  */
 export interface StoragePort {
-  /** Flows 存储 */
+  /** Flows Storage */
   flows: FlowsStore;
-  /** Runs 存储 */
+  /** Runs Storage */
   runs: RunsStore;
-  /** Events 存储 */
+  /** Events Storage */
   events: EventsStore;
-  /** Queue 存储 */
+  /** Queue Storage */
   queue: RunQueue;
-  /** 持久化变量存储 */
+  /** Persistent Vars Storage */
   persistentVars: PersistentVarsStore;
-  /** 触发器存储 */
+  /** Triggers Storage */
   triggers: TriggersStore;
 }
 
 /**
- * 创建 NotImplemented 的 Store
- * @description 避免 Proxy 生成 'then' 导致 thenable 行为
+ * Create NotImplemented Store
+ * @description Avoid Proxy generating 'then' resulting in thenable behavior
  */
 function createNotImplementedStore<T extends object>(name: string): T {
   const target = {} as T;
@@ -129,8 +129,8 @@ function createNotImplementedStore<T extends object>(name: string): T {
 }
 
 /**
- * 创建 NotImplemented 的 StoragePort
- * @description Phase 0 占位实现
+ * Create NotImplemented StoragePort
+ * @description Phase 0 placeholder implementation
  */
 export function createNotImplementedStoragePort(): StoragePort {
   return {

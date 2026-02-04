@@ -1,6 +1,6 @@
 /**
- * @fileoverview RunQueue 接口定义
- * @description 定义 Run 队列的管理接口
+ * @fileoverview RunQueue Interface Definition
+ * @description Defines the management interface for Run Queue
  */
 
 import type { JsonObject, UnixMillis } from '../../domain/json';
@@ -8,19 +8,19 @@ import type { FlowId, NodeId, RunId } from '../../domain/ids';
 import type { TriggerFireContext } from '../../domain/triggers';
 
 /**
- * RunQueue 配置
+ * RunQueue Configuration
  */
 export interface RunQueueConfig {
-  /** 最大并行 Run 数量 */
+  /** Max Parallel Runs */
   maxParallelRuns: number;
-  /** 租约 TTL（毫秒） */
+  /** Lease TTL (ms) */
   leaseTtlMs: number;
-  /** 心跳间隔（毫秒） */
+  /** Heartbeat Interval (ms) */
   heartbeatIntervalMs: number;
 }
 
 /**
- * 默认队列配置
+ * Default Queue Configuration
  */
 export const DEFAULT_QUEUE_CONFIG: RunQueueConfig = {
   maxParallelRuns: 3,
@@ -29,111 +29,111 @@ export const DEFAULT_QUEUE_CONFIG: RunQueueConfig = {
 };
 
 /**
- * 队列项状态
+ * Queue Item Status
  */
 export type QueueItemStatus = 'queued' | 'running' | 'paused';
 
 /**
- * 租约信息
+ * Lease Information
  */
 export interface Lease {
-  /** 持有者 ID */
+  /** Owner ID */
   ownerId: string;
-  /** 过期时间 */
+  /** Expiration Time */
   expiresAt: UnixMillis;
 }
 
 /**
- * RunQueue 队列项
+ * RunQueue Item
  */
 export interface RunQueueItem {
   /** Run ID */
   id: RunId;
   /** Flow ID */
   flowId: FlowId;
-  /** 状态 */
+  /** Status */
   status: QueueItemStatus;
-  /** 创建时间 */
+  /** Created At */
   createdAt: UnixMillis;
-  /** 更新时间 */
+  /** Updated At */
   updatedAt: UnixMillis;
-  /** 优先级（数字越大优先级越高） */
+  /** Priority (Higher number means higher priority) */
   priority: number;
-  /** 当前尝试次数 */
+  /** Current Attempts */
   attempt: number;
-  /** 最大尝试次数 */
+  /** Max Attempts */
   maxAttempts: number;
   /** Tab ID */
   tabId?: number;
-  /** 运行参数 */
+  /** Running Args */
   args?: JsonObject;
-  /** 触发器上下文 */
+  /** Trigger Context */
   trigger?: TriggerFireContext;
-  /** 租约信息 */
+  /** Lease Info */
   lease?: Lease;
-  /** 调试配置 */
+  /** Debug Config */
   debug?: { breakpoints?: NodeId[]; pauseOnStart?: boolean };
 }
 
 /**
- * 入队请求（不含自动生成的字段）
- * - priority 默认为 0
- * - maxAttempts 默认为 1
+ * Enqueue Request (Excluding auto-generated fields)
+ * - priority defaults to 0
+ * - maxAttempts defaults to 1
  */
 export type EnqueueInput = Omit<
   RunQueueItem,
   'status' | 'createdAt' | 'updatedAt' | 'attempt' | 'lease' | 'priority' | 'maxAttempts'
 > & {
   id: RunId;
-  /** 优先级（数字越大优先级越高，默认 0） */
+  /** Priority (Higher number means higher priority, default 0) */
   priority?: number;
-  /** 最大尝试次数（默认 1） */
+  /** Max Attempts (default 1) */
   maxAttempts?: number;
 };
 
 /**
- * RunQueue 接口
- * @description 管理 Run 的队列和调度
+ * RunQueue Interface
+ * @description Manages Run queue and scheduling
  */
 export interface RunQueue {
   /**
-   * 入队
-   * @param input 入队请求
-   * @returns 队列项
+   * Enqueue
+   * @param input Enqueue input
+   * @returns Queue item
    */
   enqueue(input: EnqueueInput): Promise<RunQueueItem>;
 
   /**
-   * 领取下一个可执行的 Run
-   * @param ownerId 领取者 ID
-   * @param now 当前时间
-   * @returns 队列项或 null
+   * Claim next executable Run
+   * @param ownerId Owner ID
+   * @param now Current time
+   * @returns Queue item or null
    */
   claimNext(ownerId: string, now: UnixMillis): Promise<RunQueueItem | null>;
 
   /**
-   * 续约心跳
-   * @param ownerId 领取者 ID
-   * @param now 当前时间
+   * Renew Heartbeat
+   * @param ownerId Owner ID
+   * @param now Current time
    */
   heartbeat(ownerId: string, now: UnixMillis): Promise<void>;
 
   /**
-   * 回收过期租约
-   * @description 将 lease.expiresAt < now 的 running/paused 项回收为 queued
-   * @param now 当前时间
-   * @returns 被回收的 Run ID 列表
+   * Reclaim Expired Leases
+   * @description Reclaim running/paused items with lease.expiresAt < now to queued
+   * @param now Current time
+   * @returns Reclaimed Run ID list
    */
   reclaimExpiredLeases(now: UnixMillis): Promise<RunId[]>;
 
   /**
-   * 恢复孤儿租约（SW 重启后调用）
+   * Recover Orphan Leases (Called after SW Restart)
    * @description
-   * - 将孤儿 running 项回收为 queued（status -> queued，租约清除）
-   * - 将孤儿 paused 项接管（保持 status=paused，租约 ownerId 更新为新 ownerId）
-   * @param ownerId 新的 ownerId（当前 Service Worker 实例）
-   * @param now 当前时间
-   * @returns 受影响的 runId 列表（含原 ownerId 用于审计）
+   * - Reclaim orphan running items to queued (status -> queued, lease cleared)
+   * - Adopt orphan paused items (keep status=paused, lease ownerId updated to new ownerId)
+   * @param ownerId New ownerId (Current Service Worker Instance)
+   * @param now Current time
+   * @returns Affected runId list (including original ownerId for auditing)
    */
   recoverOrphanLeases(
     ownerId: string,
@@ -144,39 +144,39 @@ export interface RunQueue {
   }>;
 
   /**
-   * 标记为 running
+   * Mark as running
    */
   markRunning(runId: RunId, ownerId: string, now: UnixMillis): Promise<void>;
 
   /**
-   * 标记为 paused
+   * Mark as paused
    */
   markPaused(runId: RunId, ownerId: string, now: UnixMillis): Promise<void>;
 
   /**
-   * 标记为完成（从队列移除）
+   * Mark as done (Remove from queue)
    */
   markDone(runId: RunId, now: UnixMillis): Promise<void>;
 
   /**
-   * 取消 Run
+   * Cancel Run
    */
   cancel(runId: RunId, now: UnixMillis, reason?: string): Promise<void>;
 
   /**
-   * 获取队列项
+   * Get queue item
    */
   get(runId: RunId): Promise<RunQueueItem | null>;
 
   /**
-   * 列出队列项
+   * List queue items
    */
   list(status?: QueueItemStatus): Promise<RunQueueItem[]>;
 }
 
 /**
- * 创建 NotImplemented 的 RunQueue
- * @description Phase 0 占位实现
+ * Create NotImplemented RunQueue
+ * @description Phase 0 Placeholder Implementation
  */
 export function createNotImplementedQueue(): RunQueue {
   const notImplemented = () => {
