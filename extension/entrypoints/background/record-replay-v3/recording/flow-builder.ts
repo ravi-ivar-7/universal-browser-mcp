@@ -1,4 +1,4 @@
-import type { Step } from '../legacy-compat/legacy-types';
+import type { Step } from '../core/recording-types';
 import type { FlowV3, NodeV3, EdgeV3 } from '../domain/flow';
 import { FLOW_SCHEMA_VERSION } from '../domain/flow';
 import { STEP_TYPES } from '@/common/step-types';

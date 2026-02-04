@@ -1,23 +1,23 @@
 /**
- * Legacy Step Types for Record & Replay
+ * Recording Step Types for Record & Replay
  *
- * This file contains the legacy Step type system that is being phased out
- * in favor of the DAG-based execution model (nodes/edges).
+ * This file contains the Step type system used by the recording pipeline.
+ * Steps represent the linear sequence of recorded user interactions.
  *
- * These types are kept for:
- * 1. Backward compatibility with existing flows that use steps array
- * 2. Recording pipeline that still produces Step[] output
- * 3. Legacy node handlers in nodes/ directory
+ * Architecture:
+ * - Recorder outputs Steps (this file) - Linear recording format
+ * - Flow Builder converts Steps → Nodes + Edges - DAG storage format
+ * - Runner executes Nodes via Actions - Graph-based execution
  *
- * New code should use the Action type system from ./actions/types.ts instead.
- *
- * Migration status: P4 phase 1 - types extracted, re-exported from types.ts
+ * Steps are the intermediate format between browser events and the DAG model.
+ * They provide a simpler abstraction for the recorder and enable backward
+ * compatibility with flows from earlier versions.
  */
 
 import { STEP_TYPES } from '@/common/step-types';
 
 // =============================================================================
-// Legacy Selector Types
+// Selector Types
 // =============================================================================
 
 export type SelectorType = 'css' | 'xpath' | 'attr' | 'aria' | 'text';
@@ -34,7 +34,7 @@ export interface TargetLocator {
 }
 
 // =============================================================================
-// Legacy Step Types
+// Step Types
 // =============================================================================
 
 export type StepType = (typeof STEP_TYPES)[keyof typeof STEP_TYPES];
@@ -119,20 +119,20 @@ export interface StepDrag extends StepBase {
 export interface StepWait extends StepBase {
   type: 'wait';
   condition:
-    | { selector: string; visible?: boolean }
-    | { text: string; appear?: boolean }
-    | { navigation: true }
-    | { networkIdle: true }
-    | { sleep: number };
+  | { selector: string; visible?: boolean }
+  | { text: string; appear?: boolean }
+  | { navigation: true }
+  | { networkIdle: true }
+  | { sleep: number };
 }
 
 export interface StepAssert extends StepBase {
   type: 'assert';
   assert:
-    | { exists: string }
-    | { visible: string }
-    | { textPresent: string }
-    | { attribute: { selector: string; name: string; equals?: string; matches?: string } };
+  | { exists: string }
+  | { visible: string }
+  | { textPresent: string }
+  | { attribute: { selector: string; name: string; equals?: string; matches?: string } };
   // 失败策略：stop=失败即停（默认）、warn=仅告警并继续、retry=触发重试机制
   failStrategy?: 'stop' | 'warn' | 'retry';
 }

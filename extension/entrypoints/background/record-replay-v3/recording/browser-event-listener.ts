@@ -2,7 +2,7 @@ import { addNavigationStep } from './flow-builder';
 import { STEP_TYPES } from '@/common/step-types';
 import { ensureRecorderInjected, broadcastControlToTab, REC_CMD } from './content-injection';
 import type { RecordingSessionManager } from './session-manager';
-import type { Step } from '../legacy-compat/legacy-types';
+import type { Step } from '../core/recording-types';
 
 export function initBrowserEventListeners(session: RecordingSessionManager): void {
   chrome.tabs.onActivated.addListener(async (activeInfo) => {

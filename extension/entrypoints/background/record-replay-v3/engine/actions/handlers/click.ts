@@ -10,12 +10,12 @@
 
 import { handleCallTool } from '@/entrypoints/background/tools';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
-import { ENGINE_CONSTANTS } from '../../../legacy-compat/constants';
+import { ENGINE_CONSTANTS } from '../../../core/constants';
 import {
   maybeQuickWaitForNav,
   waitForNavigationDone,
   waitForNetworkIdle,
-} from '../../../legacy-compat/wait-policy';
+} from '../../../core/wait-policy';
 import { failed, invalid, ok } from '../registry';
 import type {
   Action,

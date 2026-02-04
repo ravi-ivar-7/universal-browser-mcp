@@ -2,19 +2,21 @@
  * Record & Replay Core Types
  *
  * This file contains the core type definitions for the record-replay system.
- * Legacy Step types have been moved to ./legacy-types.ts and are re-exported
- * here for backward compatibility.
+ * Recording Step types are defined in ./recording-types.ts and re-exported here.
  *
  * Type system architecture:
- * - Legacy types (./legacy-types.ts): Step-based execution model (being phased out)
- * - Action types (./actions/types.ts): DAG-based execution model (new standard)
- * - Core types (this file): Flow, Node, Edge, Run records (shared by both)
+ * - Recording types (./recording-types.ts): Step-based recording format (what the recorder outputs)
+ * - Action types (../engine/actions/types.ts): Action execution handlers
+ * - Core types (this file): Flow, Node, Edge, Run records (DAG execution model)
+ * - Domain types (../domain/): V3 IR types for storage and events
+ * 
+ * Flow: Steps (recording) → Actions (execution) → Nodes (graph traversal)
  */
 
 import { NODE_TYPES } from '@/common/node-types';
 
 // =============================================================================
-// Re-export Legacy Types for Backward Compatibility
+// Re-export Recording Types
 // =============================================================================
 
 export type {
@@ -50,10 +52,10 @@ export type {
   StepHandleDownload,
   StepExecuteFlow,
   Step,
-} from './legacy-types';
+} from './recording-types';
 
 // Import Step type for use in Flow interface
-import type { Step } from './legacy-types';
+import type { Step } from './recording-types';
 
 // =============================================================================
 // Variable Definitions
@@ -208,7 +210,7 @@ export interface ExecCtx {
 
 export interface ExecResult {
   alreadyLogged?: boolean;
-  deferAfterScript?: import('./legacy-types').StepScript | null;
+  deferAfterScript?: import('./recording-types').StepScript | null;
   nextLabel?: string;
   control?:
   | { kind: 'foreach'; listVar: string; itemVar: string; subflowId: string; concurrency?: number }

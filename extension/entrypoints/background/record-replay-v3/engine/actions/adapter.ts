@@ -11,7 +11,7 @@
  * - `createStepExecutor`: Factory for a Step executor backed by ActionRegistry
  */
 
-import type { ExecCtx, ExecResult, Step } from '../../legacy-compat/types';
+import type { ExecCtx, ExecResult, Step } from '../../core/types';
 import type { ActionRegistry } from './registry';
 import type {
   ActionExecutionContext,

@@ -1,5 +1,5 @@
 import type { RecordingSessionManager } from './session-manager';
-import type { Step } from '../legacy-compat/legacy-types';
+import type { Step } from '../core/recording-types';
 import type { VariableDefinition } from '../domain/variables';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 
