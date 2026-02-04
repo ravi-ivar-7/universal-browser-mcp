@@ -99,6 +99,103 @@ export async function ensureTab(options: {
   return { tabId: tabId!, url };
 }
 
+/**
+ * Wait for document to be in ready state (interactive or complete)
+ * This ensures the DOM is fully parsed and elements are accessible
+ * 
+ * @param tabId - Target tab ID
+ * @param timeoutMs - Maximum time to wait (default: 10000ms)
+ * @param checkTerminated - Optional termination check callback
+ * @returns Promise that resolves when DOM is ready or rejects on timeout
+ */
+export async function waitForDocumentReady(
+  tabId: number,
+  timeoutMs: number = 10000,
+  checkTerminated?: () => boolean,
+): Promise<void> {
+  const startTime = Date.now();
+  const timeout = Math.max(1000, Math.min(timeoutMs, 30000));
+
+  console.log(`[waitForDocumentReady] START tabId=${tabId} timeout=${timeout}ms`);
+
+  while (Date.now() - startTime < timeout) {
+    try {
+      // Check if terminated
+      if (checkTerminated?.()) {
+        throw new Error('Terminated');
+      }
+
+      // Check tab existence
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab) {
+        throw new Error('Tab not found');
+      }
+
+      // Execute script to check document.readyState
+      const result = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          try {
+            return {
+              readyState: document.readyState,
+              url: document.location.href,
+              title: document.title,
+              bodyExists: !!document.body,
+            };
+          } catch (e) {
+            return { error: String(e) };
+          }
+        },
+      });
+
+      const docState = result?.[0]?.result;
+
+      if (docState?.error) {
+        console.warn(`[waitForDocumentReady] Document check error: ${docState.error}`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        continue;
+      }
+
+      // Ready states: 'loading', 'interactive', 'complete'
+      // 'interactive' = DOM parsed, but resources still loading
+      // 'complete' = everything loaded
+      if (docState?.readyState === 'complete' || docState?.readyState === 'interactive') {
+        const elapsed = Date.now() - startTime;
+        console.log(
+          `[waitForDocumentReady] READY after ${elapsed}ms - state="${docState.readyState}", ` +
+          `url="${docState.url?.substring(0, 60)}...", bodyExists=${docState.bodyExists}`
+        );
+
+        // Give a tiny grace period for any pending async operations
+        await new Promise(resolve => setTimeout(resolve, 50));
+        return;
+      }
+
+      console.log(`[waitForDocumentReady] Still loading... state="${docState?.readyState}"`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+    } catch (e: any) {
+      // Script injection might fail if page is still navigating
+      const isNavigationError =
+        e?.message?.includes('No tab with id') ||
+        e?.message?.includes('Cannot access') ||
+        e?.message?.includes('Frame with id');
+
+      if (isNavigationError) {
+        console.log(`[waitForDocumentReady] Navigation in progress, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 200));
+        continue;
+      }
+
+      console.warn(`[waitForDocumentReady] Unexpected error:`, e);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  console.warn(`[waitForDocumentReady] TIMEOUT after ${timeout}ms`);
+  throw new Error(`Document ready timeout after ${timeout}ms`);
+}
+
 export async function waitForNetworkIdle(
   totalTimeoutMs: number,
   idleThresholdMs: number,
@@ -148,6 +245,7 @@ export async function waitForNetworkIdle(
 // Event-driven navigation wait helper
 // Waits for top-frame navigation completion or SPA history updates on active tab.
 // Falls back to short network idle on timeout.
+// IMPORTANT: Also waits for DOM to be ready after navigation completes.
 export async function waitForNavigation(
   timeoutMs?: number,
   prevUrl?: string,
@@ -175,6 +273,9 @@ export async function waitForNavigation(
       // Only early-return if URL has actually changed (navigation finished before we started waiting)
       if (prevUrl && currentUrl !== prevUrl) {
         console.log(`[waitForNavigation] Tab already navigated: "${prevUrl}" -> "${currentUrl}"`);
+        // Still need to ensure DOM is ready
+        console.log('[waitForNavigation] Ensuring DOM is ready...');
+        await waitForDocumentReady(tabId, 5000, checkTerminated);
         return;
       }
       // If no prevUrl given, or URL hasn't changed yet, we need to wait for navigation events
@@ -218,11 +319,22 @@ export async function waitForNavigation(
         } catch { }
       }
     };
-    const finish = () => {
+    const finish = async () => {
       if (done) return;
       done = true;
       cleanup();
-      resolve();
+
+      // CRITICAL: Wait for DOM to be ready after navigation completes
+      console.log('[waitForNavigation] Navigation event detected, ensuring DOM ready...');
+      try {
+        await waitForDocumentReady(tabId!, 5000, checkTerminated);
+        console.log('[waitForNavigation] COMPLETE - Navigation and DOM ready');
+        resolve();
+      } catch (e) {
+        console.error('[waitForNavigation] DOM ready check failed:', e);
+        // Don't fail the whole navigation, just log and continue
+        resolve();
+      }
     };
 
     if (checkTerminated) {
@@ -252,7 +364,7 @@ export async function waitForNavigation(
         details.frameId === 0 &&
         details.timeStamp >= startedAt
       )
-        finish();
+        void finish();
     };
     const onHistoryStateUpdated = (details: any) => {
       if (
@@ -261,12 +373,12 @@ export async function waitForNavigation(
         details.frameId === 0 &&
         details.timeStamp >= startedAt
       )
-        finish();
+        void finish();
     };
     const onTabUpdated = (updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
       if (updatedTabId !== tabId) return;
-      if (changeInfo.status === 'complete') finish();
-      if (typeof changeInfo.url === 'string' && (!prevUrl || changeInfo.url !== prevUrl)) finish();
+      if (changeInfo.status === 'complete') void finish();
+      if (typeof changeInfo.url === 'string' && (!prevUrl || changeInfo.url !== prevUrl)) void finish();
     };
     const onTabRemoved = (removedTabId: number) => {
       if (removedTabId === tabId) {
@@ -282,6 +394,9 @@ export async function waitForNavigation(
         // Use a short, bounded network idle check
         await waitForNetworkIdle(3000, 500, checkTerminated);
         console.log('[waitForNavigation] Fallback success (network idle)');
+        // Still ensure DOM is ready after fallback
+        await waitForDocumentReady(tabId!, 3000, checkTerminated);
+        console.log('[waitForNavigation] DOM ready after fallback');
         resolve();
       } catch (e) {
         console.error('[waitForNavigation] Fallback failed:', e);

@@ -26,6 +26,7 @@ import type {
 import {
   clampInt,
   ensureElementVisible,
+  ensurePageReady,
   logSelectorFallback,
   readTabUrl,
   selectorLocator,
@@ -47,6 +48,9 @@ async function executeClick<T extends 'click' | 'dblclick'>(
   if (typeof tabId !== 'number') {
     return failed('TAB_NOT_FOUND', 'No active tab found');
   }
+
+  // CRITICAL: Ensure DOM is ready before trying to read page
+  await ensurePageReady(tabId);
 
   // Ensure page is read before locating element
   await handleCallTool({ name: TOOL_NAMES.BROWSER.READ_PAGE, args: {} });

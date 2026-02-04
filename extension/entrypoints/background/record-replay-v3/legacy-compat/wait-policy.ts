@@ -3,12 +3,20 @@
 
 import { handleCallTool } from '@/entrypoints/background/tools';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
-import { waitForNavigation as rrWaitForNavigation, waitForNetworkIdle } from './rr-utils';
+import {
+  waitForNavigation as rrWaitForNavigation,
+  waitForNetworkIdle,
+  waitForDocumentReady as rrWaitForDocumentReady,
+} from './rr-utils';
 
 export async function waitForNavigationDone(prevUrl: string, timeoutMs?: number, tabId?: number) {
   await rrWaitForNavigation(timeoutMs, prevUrl, undefined, tabId);
 }
 
+/**
+ * Ensure READ_PAGE is called on web pages after DOM is ready
+ * This is critical to prevent race conditions where elements haven't loaded yet
+ */
 export async function ensureReadPageIfWeb(explicitTabId?: number) {
   try {
     let tabId = explicitTabId;
@@ -21,9 +29,16 @@ export async function ensureReadPageIfWeb(explicitTabId?: number) {
     const tab = await chrome.tabs.get(tabId);
     const url = tab?.url || '';
     if (/^(https?:|file:)/i.test(url)) {
+      // CRITICAL: Wait for DOM to be ready before reading page
+      console.log('[ensureReadPageIfWeb] Waiting for DOM ready before READ_PAGE...');
+      await rrWaitForDocumentReady(tabId, 5000);
+      console.log('[ensureReadPageIfWeb] DOM ready, calling READ_PAGE');
+
       await handleCallTool({ name: TOOL_NAMES.BROWSER.READ_PAGE, args: { tabId } });
     }
-  } catch { }
+  } catch (e) {
+    console.warn('[ensureReadPageIfWeb] Error:', e);
+  }
 }
 
 export async function maybeQuickWaitForNav(prevUrl: string, timeoutMs?: number) {
@@ -98,4 +113,4 @@ export async function maybeQuickWaitForNav(prevUrl: string, timeoutMs?: number) 
   } catch { }
 }
 
-export { waitForNetworkIdle };
+export { waitForNetworkIdle, rrWaitForDocumentReady as waitForDocumentReady };

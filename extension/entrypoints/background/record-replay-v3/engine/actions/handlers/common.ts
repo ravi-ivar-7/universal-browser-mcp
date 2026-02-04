@@ -146,7 +146,7 @@ export function toSelectorTarget(
     // Respect user-defined weight if present, otherwise use position-based weight
     const userWeight =
       typeof (c as { weight?: number }).weight === 'number' &&
-      Number.isFinite((c as { weight?: number }).weight)
+        Number.isFinite((c as { weight?: number }).weight)
         ? (c as { weight: number }).weight
         : 0;
     // Non-text candidates get higher base weight
@@ -294,6 +294,51 @@ export async function readTabUrl(tabId: number): Promise<string> {
     return '';
   }
 }
+
+/**
+ * Ensure page is ready before attempting to interact with DOM
+ * Waits for document.readyState to be 'interactive' or 'complete'
+ * 
+ * This is critical to prevent race conditions where:
+ * - Navigation just completed but DOM is still loading
+ * - Elements haven't been parsed yet
+ * - Scripts are still being injected
+ * 
+ * @param tabId - Target tab ID
+ * @param timeoutMs - Maximum wait time (default: 5000ms)
+ */
+export async function ensurePageReady(tabId: number, timeoutMs: number = 5000): Promise<void> {
+  const startTime = Date.now();
+  const timeout = Math.max(1000, Math.min(timeoutMs, 10000));
+
+  while (Date.now() - startTime < timeout) {
+    try {
+      // Check document.readyState
+      const result = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => document.readyState,
+      });
+
+      const readyState = result?.[0]?.result;
+
+      // 'interactive' means DOM is parsed and ready
+      // 'complete' means everything including images/styles loaded
+      if (readyState === 'complete' || readyState === 'interactive') {
+        return;
+      }
+
+      // Wait a bit before checking again
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (e) {
+      // Script injection might fail if page is still navigating
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  // Timeout - continue anyway but log warning
+  console.warn(`[ensurePageReady] Timeout after ${timeout}ms for tab ${tabId}`);
+}
+
 
 // ================================
 // Logging Utilities
