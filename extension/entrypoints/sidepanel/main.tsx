@@ -5,12 +5,12 @@ import { SidepanelNavigator } from './components/SidepanelNavigator';
 import { useAgentTheme, preloadAgentTheme } from './hooks/useAgentTheme';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 import type { ElementMarker, UpsertMarkerRequest } from '@/common/element-marker-types';
-import type { FlowV3 as Flow } from '@/entrypoints/background/record-replay-v3/domain/flow';
+import type { Flow } from '@/entrypoints/background/record-replay/domain/flow';
 
 import { AgentChat } from './components/AgentChat';
 import ContextLoader from './components/ContextLoader';
-import { useRRV3Rpc } from '@/entrypoints/shared/composables';
-import type { RunEvent } from '@/entrypoints/background/record-replay-v3/domain/events';
+import { useRRRpc } from '@/entrypoints/shared/composables';
+import type { RunEvent } from '@/entrypoints/background/record-replay/domain/events';
 
 // Import styles (only keeping tailwind if we are doing inline-only)
 import '../styles/tailwind.css';
@@ -23,7 +23,7 @@ void chrome.runtime.sendMessage({ type: NativeMessageType.ENSURE_NATIVE }).catch
 
 function App() {
     const { theme: currentTheme, initTheme } = useAgentTheme();
-    const rpc = useRRV3Rpc({ autoConnect: true });
+    const rpc = useRRRpc({ autoConnect: true });
     const [activeTab, setActiveTab] = useState<'element-markers' | 'agent-chat' | 'workflows'>('agent-chat');
 
     // Element markers state
@@ -61,7 +61,7 @@ function App() {
     const loadFlows = useCallback(async () => {
         setIsFlowsLoading(true);
         try {
-            const flows: any = await rpcRequest('rr_v3.listFlows');
+            const flows: any = await rpcRequest('rr.listFlows');
             setFlows(flows || []);
         } catch (e) {
             console.error('[Sidepanel] Failed to load flows:', e);
@@ -73,7 +73,7 @@ function App() {
     const handleDeleteFlow = async (flow: Flow) => {
         if (!confirm(`Are you sure you want to delete workflow "${flow.name || 'Untitled'}"?`)) return;
         try {
-            await rpcRequest('rr_v3.deleteFlow', { flowId: flow.id });
+            await rpcRequest('rr.deleteFlow', { flowId: flow.id });
             loadFlows();
         } catch (e) {
             console.error('Failed to delete flow:', e);
@@ -86,7 +86,7 @@ function App() {
             setExpandingFlows(prev => ({ ...prev, [flowId]: true }));
             setFlowPaused(prev => ({ ...prev, [flowId]: false }));
 
-            const res: any = await rpcRequest('rr_v3.enqueueRun', { flowId });
+            const res: any = await rpcRequest('rr.enqueueRun', { flowId });
             if (res?.runId) {
                 setActiveRunIds(prev => ({ ...prev, [flowId]: res.runId }));
             }
@@ -99,7 +99,7 @@ function App() {
         const runId = activeRunIds[flowId];
         if (!runId) return;
         try {
-            await rpcRequest('rr_v3.cancelRun', { runId });
+            await rpcRequest('rr.cancelRun', { runId });
         } catch (e) {
             console.error('Failed to stop run:', e);
         }
@@ -109,7 +109,7 @@ function App() {
         const runId = activeRunIds[flowId];
         if (!runId) return;
         try {
-            await rpcRequest('rr_v3.pauseRun', { runId });
+            await rpcRequest('rr.pauseRun', { runId });
             setFlowPaused(prev => ({ ...prev, [flowId]: true }));
         } catch (e) {
             console.error('Failed to pause run:', e);
@@ -120,7 +120,7 @@ function App() {
         const runId = activeRunIds[flowId];
         if (!runId) return;
         try {
-            await rpcRequest('rr_v3.resumeRun', { runId });
+            await rpcRequest('rr.resumeRun', { runId });
             setFlowPaused(prev => ({ ...prev, [flowId]: false }));
         } catch (e) {
             console.error('Failed to resume run:', e);
@@ -133,7 +133,7 @@ function App() {
         }
     }, [activeTab, loadFlows]);
 
-    // V3 RPC effect handles real-time events and state sync
+    // RPC effect handles real-time events and state sync
 
     useEffect(() => {
         if (rpcConnected) {
@@ -195,9 +195,9 @@ function App() {
 
         const syncActiveRuns = async () => {
             try {
-                const activeRuns: any = await rpcRequest('rr_v3.listQueue', { status: 'running' });
+                const activeRuns: any = await rpcRequest('rr.listQueue', { status: 'running' });
                 // Also get paused ones
-                const pausedRuns: any = await rpcRequest('rr_v3.listQueue', { status: 'paused' });
+                const pausedRuns: any = await rpcRequest('rr.listQueue', { status: 'paused' });
 
                 const allActive = [...(activeRuns || []), ...(pausedRuns || [])];
                 const runIds: Record<string, string> = {};
@@ -533,7 +533,7 @@ function App() {
                     <div className="flex items-center justify-between mb-8">
                         <div>
                             <h1 className="text-[24px] font-[900] text-[#0f172a] tracking-tight leading-none mb-1 uppercase">Workflows</h1>
-                            <p className="text-[12px] font-bold text-[#94a3b8] uppercase tracking-tight opacity-70">Record & Replay V3</p>
+                            <p className="text-[12px] font-bold text-[#94a3b8] uppercase tracking-tight opacity-70">Record & Replay</p>
                         </div>
                         {flows.length > 0 && (
                             <div className="flex items-center gap-2">

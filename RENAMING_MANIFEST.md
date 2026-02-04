@@ -111,10 +111,7 @@ Based on grep results, approximately:
 - [ ] TypeScript compilation succeeds
 - [ ] No "cannot find module" errors
 - [ ] Git status shows only renamed files (preserves history)
-- [ ] Dev server runs successfully
 - [ ] Recording still works
 - [ ] Replay still works
 
 ---
-
-Ready to execute? This will be a big refactor but everything will be much clearer!

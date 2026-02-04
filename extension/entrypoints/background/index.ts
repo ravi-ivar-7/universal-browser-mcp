@@ -13,14 +13,14 @@ import { initQuickPanelBookmarksHandler } from './quick-panel/bookmarks-handler'
 import { initQuickPanelHistoryHandler } from './quick-panel/history-handler';
 import { initQuickPanelNavigationHandler } from './quick-panel/navigation-handler';
 
-// Record-Replay V3 (new engine)
-import { bootstrapV3 } from './record-replay-v3/bootstrap';
+// Record-Replay (new engine)
+import { bootstrapRecordReplay } from './record-replay/bootstrap';
 
 /**
- * Feature flag for RR-V3
- * Set to true to enable the new Record-Replay V3 engine
+ * Feature flag for RR
+ * Set to true to enable the new Record-Replay engine
  */
-const ENABLE_RR_V3 = true;
+const ENABLE_RR = true;
 
 /**
  * Background script entry point
@@ -57,14 +57,14 @@ export default defineBackground(() => {
 
   // Record & Replay V1/V2: recording, playback, triggers, schedules
 
-  // Record & Replay V3 (new engine)
-  if (ENABLE_RR_V3) {
-    bootstrapV3()
+  // Record & Replay (new engine)
+  if (ENABLE_RR) {
+    bootstrapRecordReplay()
       .then((runtime) => {
-        console.log(`[RR-V3] Bootstrap complete, ownerId: ${runtime.ownerId}`);
+        console.log(`[RR] Bootstrap complete, ownerId: ${runtime.ownerId}`);
       })
       .catch((error) => {
-        console.error('[RR-V3] Bootstrap failed:', error);
+        console.error('[RR] Bootstrap failed:', error);
       });
   }
 
