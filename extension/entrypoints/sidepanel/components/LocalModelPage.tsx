@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { getMessage } from '@/utils/i18n';
 import ProgressIndicator from './ProgressIndicator';
-import ModelCacheManagement, { CacheStats } from './ModelCacheManagement';
+import ModelCacheManagement, { CacheStats } from './ModelCacheManagement'
 import {
     DocumentIcon,
     DatabaseIcon,

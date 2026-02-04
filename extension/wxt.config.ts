@@ -63,7 +63,6 @@ export default defineConfig({
       open_in_tab: true,
     },
     action: {
-      default_popup: 'popup.html',
       default_title: 'Chrome MCP Server',
     },
     icons: {

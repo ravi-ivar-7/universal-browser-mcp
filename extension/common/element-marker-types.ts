@@ -14,7 +14,7 @@ export interface ElementMarker {
 
   name: string; // Human-friendly name, e.g., "Login Button"
   selector: string; // Selector string
-  selectorType?: 'css' | 'xpath'; // Default: css
+  selectorType?: 'css' | 'xpath' | 'text'; // Default: css
   listMode?: boolean; // Whether this marker was created in list mode (allows multiple matches)
   action?: 'click' | 'fill' | 'custom'; // Intended action hint (optional)
 
@@ -27,7 +27,7 @@ export interface UpsertMarkerRequest {
   url: string;
   name: string;
   selector: string;
-  selectorType?: 'css' | 'xpath';
+  selectorType?: 'css' | 'xpath' | 'text';
   listMode?: boolean;
   matchType?: UrlMatchType;
   action?: 'click' | 'fill' | 'custom';
@@ -46,7 +46,7 @@ export enum MarkerValidationAction {
 
 export interface MarkerValidationRequest {
   selector: string;
-  selectorType?: 'css' | 'xpath';
+  selectorType?: 'css' | 'xpath' | 'text';
   action: MarkerValidationAction;
   // Optional payload for certain actions
   text?: string; // for type_text

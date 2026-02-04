@@ -28,13 +28,19 @@ const ENABLE_RR = true;
  */
 export default defineBackground(() => {
   // Open welcome page on first install
+  // Open welcome page on first install
   chrome.runtime.onInstalled.addListener((details) => {
-    if (details.reason === 'install') {
-      // Open the welcome/onboarding page for new installations
-      chrome.tabs.create({
-        url: chrome.runtime.getURL('/welcome.html'),
-      });
+    // Configure sidepanel behavior to open on action click
+    if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+      chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+        .catch((error) => console.warn('Failed to set panel behavior:', error));
     }
+
+    // if (details.reason === 'install') {
+    //   chrome.tabs.create({
+    //     url: chrome.runtime.getURL('/welcome.html'),
+    //   });
+    // }
   });
 
   // Initialize core services

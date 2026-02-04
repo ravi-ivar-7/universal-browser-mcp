@@ -12,7 +12,7 @@
 import type { JsonObject, UnixMillis } from '../../domain/json';
 import type { FlowId, NodeId, RunId } from '../../domain/ids';
 import type { TriggerFireContext } from '../../domain/triggers';
-import { RUN_SCHEMA_VERSION, type RunRecordV3 } from '../../domain/events';
+import { RUN_SCHEMA_VERSION, type RunRecord } from '../../domain/events';
 import type { StoragePort } from '../storage/storage-port';
 import type { EventsBus } from '../transport/events-bus';
 import type { RunScheduler } from './scheduler';
@@ -171,8 +171,8 @@ export async function enqueueRun(
   const ts = now();
   const runId = generateRunId();
 
-  // 1. Create RunRecordV3
-  const runRecord: RunRecordV3 = {
+  // 1. Create RunRecord
+  const runRecord: RunRecord = {
     schemaVersion: RUN_SCHEMA_VERSION,
     id: runId,
     flowId,
