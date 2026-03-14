@@ -7,11 +7,11 @@ This document details the installation and registration process for Chrome MCP B
 The installation and registration process for Chrome MCP Bridge is as follows:
 
 ```
-npm install -g mcp-chrome-bridge
+npm install -g universal-browser-mcp
 └─ postinstall.js
    ├─ Copy executable files to npm_prefix/bin   ← Always writeable (User or root permissions)
    ├─ Try user level registration               ← No sudo required, succeeds in most cases
-   └─ If fails ➜ Prompt user to run mcp-chrome-bridge register --system
+   └─ If fails ➜ Prompt user to run universal-browser-mcp register --system
       └─ Requires manual run with admin privileges
 ```
 
@@ -22,7 +22,7 @@ The flowchart above shows the complete process from global installation to final
 ### 1. Global Installation
 
 ```bash
-npm install -g mcp-chrome-bridge
+npm install -g universal-browser-mcp
 ```
 
 After installation, the system will automatically try to register the Native Messaging host in the user directory. This does not require administrator privileges and is the recommended installation method.
@@ -47,13 +47,13 @@ Manifest File Location
 If automatic registration fails, or if you want to register manually, you can run:
 
 ```bash
-mcp-chrome-bridge register
+universal-browser-mcp register
 ```
 
 **Recommended: Run diagnostic tool to check for issues:**
 
 ```bash
-mcp-chrome-bridge doctor
+universal-browser-mcp doctor
 ```
 
 ### 3. System Level Registration
@@ -66,10 +66,10 @@ System level registration has two methods:
 
 ```bash
 # macOS/Linux
-sudo mcp-chrome-bridge register --system
+sudo universal-browser-mcp register --system
 
 # Windows (Run Command Prompt as Administrator)
-mcp-chrome-bridge register --system
+universal-browser-mcp register --system
 ```
 
 System level installation requires administrator privileges to write to system directories and the registry.
@@ -80,14 +80,14 @@ System level installation requires administrator privileges to write to system d
 Run Command Prompt or PowerShell as Administrator, then execute:
 
 ```
-mcp-chrome-bridge register
+universal-browser-mcp register
 ```
 
 **macOS/Linux**:
 Use sudo command:
 
 ```
-sudo mcp-chrome-bridge register
+sudo universal-browser-mcp register
 ```
 
 ## Registration Process Details
@@ -96,14 +96,14 @@ sudo mcp-chrome-bridge register
 
 ```
 Registration Process
-├─ User Level Registration (mcp-chrome-bridge register)
+├─ User Level Registration (universal-browser-mcp register)
 │  ├─ Get user level manifest path
 │  ├─ Create user directory
 │  ├─ Generate manifest content
 │  ├─ Write manifest file
 │  └─ Windows: Create user-level registry keys
 │
-└─ System Level Registration (mcp-chrome-bridge register --system)
+└─ System Level Registration (universal-browser-mcp register --system)
    ├─ Check for admin permissions
    │  ├─ Authorized → Create system directory and write manifest directly
    │  └─ Unauthorized → Prompt user to run with admin privileges
@@ -147,7 +147,7 @@ manifest.json
    - Create system level registry keys on Windows
 3. If admin permissions are not available:
    - Prompt user to re-run with admin privileges
-   - macOS/Linux: `sudo mcp-chrome-bridge register --system`
+   - macOS/Linux: `sudo universal-browser-mcp register --system`
    - Windows: Run Command Prompt as Administrator
 
 ## Verify Installation
@@ -200,9 +200,9 @@ Troubleshooting
 │  ├─ Execution permission issues (macOS/Linux)
 │  │  ├─ "Permission denied" error
 │  │  ├─ "Native host has exited" error
-│  │  └─ Run mcp-chrome-bridge fix-permissions
+│  │  └─ Run universal-browser-mcp fix-permissions
 │  │
-│  └─ Try mcp-chrome-bridge register --system
+│  └─ Try universal-browser-mcp register --system
 │
 ├─ Path Issues
 │  ├─ Check Node.js installation (node -v)
@@ -239,11 +239,11 @@ If you encounter issues during installation, please try the following steps:
    **Solutions**:
    a) **Use the built-in fix command (Recommended)**:
       ```bash
-      mcp-chrome-bridge fix-permissions
+      universal-browser-mcp fix-permissions
       ```
    b) **Run the diagnostic tool for auto-fix**:
       ```bash
-      mcp-chrome-bridge doctor --fix
+      universal-browser-mcp doctor --fix
       ```
    c) **Manually set permissions**:
       ```bash
@@ -253,7 +253,7 @@ If you encounter issues during installation, please try the following steps:
       pnpm root -g
       
       # Set execution permission (replace with actual path)
-      chmod +x <path>/mcp-chrome-bridge/dist/scripts/run_host.sh
+      chmod +x <path>/universal-browser-mcp/dist/scripts/run_host.sh
       ```
 
    **Windows Platform**:
@@ -265,11 +265,11 @@ If you encounter issues during installation, please try the following steps:
    **Solutions**:
    a) **Use the built-in fix command (Recommended)**:
       ```powershell
-      mcp-chrome-bridge fix-permissions
+      universal-browser-mcp fix-permissions
       ```
    b) **Run the diagnostic tool for auto-fix**:
       ```powershell
-      mcp-chrome-bridge doctor --fix
+      universal-browser-mcp doctor --fix
       ```
    c) **Manually check file attributes**:
       ```powershell
@@ -281,15 +281,15 @@ If you encounter issues during installation, please try the following steps:
    d) **Reinstall and enforce permissions**:
       ```bash
       # Uninstall
-      npm uninstall -g mcp-chrome-bridge
-      # Or pnpm uninstall -g mcp-chrome-bridge
+      npm uninstall -g universal-browser-mcp
+      # Or pnpm uninstall -g universal-browser-mcp
       
       # Reinstall
-      npm install -g mcp-chrome-bridge
-      # Or pnpm install -g mcp-chrome-bridge
+      npm install -g universal-browser-mcp
+      # Or pnpm install -g universal-browser-mcp
       
       # If issues persist, run permission fix
-      mcp-chrome-bridge fix-permissions
+      universal-browser-mcp fix-permissions
       ```
 
 4. On Windows, ensure registry access is not restricted
@@ -297,7 +297,7 @@ If you encounter issues during installation, please try the following steps:
    - For system level, check `HKLM\Software\Google\Chrome\NativeMessagingHosts\`
 
 5. Try system-level installation
-   - Use `mcp-chrome-bridge register --system` command
+   - Use `universal-browser-mcp register --system` command
    - Or run directly with administrator privileges
 
 6. Check console error output

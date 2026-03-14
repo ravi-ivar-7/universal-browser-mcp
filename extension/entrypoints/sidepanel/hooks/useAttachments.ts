@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import type { AgentAttachment } from 'chrome-mcp-shared';
+import type { AgentAttachment } from 'universal-browser-mcp-shared';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_ATTACHMENTS = 10; // Maximum number of attachments

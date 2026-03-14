@@ -58,17 +58,17 @@ export const ERROR_MESSAGES = {
 
 /**
  * Environment variables for dynamically resolving the local MCP HTTP endpoint.
- * CHROME_MCP_PORT is the preferred source; MCP_HTTP_PORT is kept for backward compatibility.
+ * UNIVERSAL_BROWSER_MCP_PORT is the preferred source; MCP_HTTP_PORT is kept for backward compatibility.
  */
-export const CHROME_MCP_PORT_ENV = 'CHROME_MCP_PORT';
+export const UNIVERSAL_BROWSER_MCP_PORT_ENV = 'UNIVERSAL_BROWSER_MCP_PORT';
 export const MCP_HTTP_PORT_ENV = 'MCP_HTTP_PORT';
 
 /**
  * Get the actual port the Chrome MCP server is listening on.
- * Priority: CHROME_MCP_PORT env > MCP_HTTP_PORT env > NATIVE_SERVER_PORT default
+ * Priority: UNIVERSAL_BROWSER_MCP_PORT env > MCP_HTTP_PORT env > NATIVE_SERVER_PORT default
  */
 export function getChromeMcpPort(): number {
-  const raw = process.env[CHROME_MCP_PORT_ENV] || process.env[MCP_HTTP_PORT_ENV];
+  const raw = process.env[UNIVERSAL_BROWSER_MCP_PORT_ENV] || process.env[MCP_HTTP_PORT_ENV];
   const port = raw ? Number.parseInt(String(raw), 10) : NaN;
   return Number.isFinite(port) && port > 0 && port <= 65535 ? port : NATIVE_SERVER_PORT;
 }

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { AgentEngine, EngineExecutionContext, EngineInitOptions } from './types';
 import type { AgentMessage, RealtimeEvent } from '../types';
 import { getChromeMcpUrl } from '../../constant';
-import { TOOL_SCHEMAS, NativeMessageType } from 'chrome-mcp-shared';
+import { TOOL_SCHEMAS, NativeMessageType } from 'universal-browser-mcp-shared';
 import { GoogleGenerativeAI, Part } from '@google/generative-ai';
 
 /**

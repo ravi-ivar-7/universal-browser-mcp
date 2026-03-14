@@ -11,16 +11,16 @@
 import os from 'node:os';
 import path from 'node:path';
 
-const DEFAULT_DATA_DIR = path.join(os.homedir(), '.chrome-mcp-agent');
+const DEFAULT_DATA_DIR = path.join(os.homedir(), '.universal-browser-mcp-agent');
 
 /**
  * Resolve base data directory for agent state.
  *
  * Environment:
- * - CHROME_MCP_AGENT_DATA_DIR: overrides the default base directory.
+ * - UNIVERSAL_BROWSER_MCP_AGENT_DATA_DIR: overrides the default base directory.
  */
 export function getAgentDataDir(): string {
-  const raw = process.env.CHROME_MCP_AGENT_DATA_DIR;
+  const raw = process.env.UNIVERSAL_BROWSER_MCP_AGENT_DATA_DIR;
   if (raw && raw.trim()) {
     return path.resolve(raw.trim());
   }
@@ -31,10 +31,10 @@ export function getAgentDataDir(): string {
  * Resolve database file path.
  *
  * Environment:
- * - CHROME_MCP_AGENT_DB_FILE: overrides the default database path.
+ * - UNIVERSAL_BROWSER_MCP_AGENT_DB_FILE: overrides the default database path.
  */
 export function getDatabasePath(): string {
-  const raw = process.env.CHROME_MCP_AGENT_DB_FILE;
+  const raw = process.env.UNIVERSAL_BROWSER_MCP_AGENT_DB_FILE;
   if (raw && raw.trim()) {
     return path.resolve(raw.trim());
   }
@@ -46,8 +46,8 @@ export function getDatabasePath(): string {
  * This is a subdirectory under the agent data directory.
  *
  * Cross-platform compatible:
- * - Mac/Linux: ~/.chrome-mcp-agent/workspaces
- * - Windows: %USERPROFILE%\.chrome-mcp-agent\workspaces
+ * - Mac/Linux: ~/.universal-browser-mcp-agent/workspaces
+ * - Windows: %USERPROFILE%\.universal-browser-mcp-agent\workspaces
  */
 export function getDefaultWorkspaceDir(): string {
   return path.join(getAgentDataDir(), 'workspaces');

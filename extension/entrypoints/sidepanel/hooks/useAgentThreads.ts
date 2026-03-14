@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type {
     AgentMessage,
     AttachmentMetadata,
-} from 'chrome-mcp-shared';
+} from 'universal-browser-mcp-shared';
 import type { AgentRequestState } from './useAgentChat';
 
 /** Thread state */

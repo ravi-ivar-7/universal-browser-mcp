@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import type { AgentProject, AgentStoredMessage, CodexReasoningEffort } from 'chrome-mcp-shared';
+import type { AgentProject, AgentStoredMessage, CodexReasoningEffort } from 'universal-browser-mcp-shared';
 
 const STORAGE_KEY_SELECTED_PROJECT = 'agent-selected-project-id';
 

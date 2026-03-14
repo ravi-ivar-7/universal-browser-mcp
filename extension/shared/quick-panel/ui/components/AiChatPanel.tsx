@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { AgentMessage, RealtimeEvent, AgentUsageStats } from 'chrome-mcp-shared';
+import type { AgentMessage, RealtimeEvent, AgentUsageStats } from 'universal-browser-mcp-shared';
 import type { QuickPanelAgentBridge } from '../../core/agent-bridge';
 import { MessageItem } from './MessageItem';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';

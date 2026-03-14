@@ -53,26 +53,26 @@ npm run build
 #### Automatically detect and register all installed browsers
 
 ```bash
-mcp-chrome-bridge register --detect
+universal-browser-mcp register --detect
 ```
 
 #### Register specific browser
 
 ```bash
 # Register Chrome only
-mcp-chrome-bridge register --browser chrome
+universal-browser-mcp register --browser chrome
 
 # Register Chromium only
-mcp-chrome-bridge register --browser chromium
+universal-browser-mcp register --browser chromium
 
 # Register all supported browsers
-mcp-chrome-bridge register --browser all
+universal-browser-mcp register --browser all
 ```
 
 #### Global installation (automatically registers detected browsers)
 
 ```bash
-npm i -g mcp-chrome-bridge
+npm i -g universal-browser-mcp
 ```
 
 #### Browser Support

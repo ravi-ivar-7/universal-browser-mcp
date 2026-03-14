@@ -34,10 +34,10 @@ let sqliteInstance: Database.Database | null = null;
 
 /**
  * Get the database file path.
- * Environment: CHROME_MCP_AGENT_DB_FILE overrides the default path.
+ * Environment: UNIVERSAL_BROWSER_MCP_AGENT_DB_FILE overrides the default path.
  */
 export function getDatabasePath(): string {
-  const envPath = process.env.CHROME_MCP_AGENT_DB_FILE;
+  const envPath = process.env.UNIVERSAL_BROWSER_MCP_AGENT_DB_FILE;
   if (envPath && envPath.trim()) {
     return path.resolve(envPath.trim());
   }

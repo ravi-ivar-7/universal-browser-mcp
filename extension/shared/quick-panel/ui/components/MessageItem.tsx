@@ -1,5 +1,5 @@
 import React from 'react';
-import type { AgentMessage } from 'chrome-mcp-shared';
+import type { AgentMessage } from 'universal-browser-mcp-shared';
 import { MarkdownContent } from './MarkdownContent';
 
 interface MessageItemProps {

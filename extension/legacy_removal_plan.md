@@ -173,7 +173,7 @@ engine/actions/adapter.ts         # No longer needed (Step→Action conversion)
 
 #### 3.1 Remove mapStepToNodeConfig
 
-This function is in `chrome-mcp-shared` package.
+This function is in `universal-browser-mcp-shared` package.
 
 **Location**: [shared/src/rr-graph.ts](file:///home/ravi/Desktop/Auto%20Job%20Apply/universal-browser-mcp/shared/src/rr-graph.ts)
 

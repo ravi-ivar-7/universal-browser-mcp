@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
-import { NativeMessageType } from 'chrome-mcp-shared';
+import { NativeMessageType } from 'universal-browser-mcp-shared';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { AdvancedView } from './components/AdvancedView';

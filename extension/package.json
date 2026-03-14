@@ -1,5 +1,5 @@
 {
-  "name": "chrome-mcp-server",
+  "name": "universal-browser-mcp",
   "description": "a chrome extension to use your own chrome as a mcp server",
   "author": "hangye",
   "private": true,
@@ -24,7 +24,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.0",
     "@xenova/transformers": "^2.17.2",
-    "chrome-mcp-shared": "file:../shared",
+    "universal-browser-mcp-shared": "file:../shared",
     "date-fns": "^4.1.0",
     "gifenc": "^1.0.3",
     "hnswlib-wasm-static": "0.8.5",

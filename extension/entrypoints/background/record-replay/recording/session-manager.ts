@@ -4,7 +4,7 @@ import type { VariableDefinition } from '../domain/variables';
 import { FLOW_SCHEMA_VERSION } from '../domain/flow';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { NODE_TYPES } from '@/common/node-types';
-import { mapStepToNodeConfig, EDGE_LABELS } from 'chrome-mcp-shared';
+import { mapStepToNodeConfig, EDGE_LABELS } from 'universal-browser-mcp-shared';
 
 /**
  * Recording status state machine:

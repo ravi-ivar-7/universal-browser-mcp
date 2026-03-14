@@ -725,8 +725,8 @@ export class ClaudeEngine implements AgentEngine {
       }
 
       // Inject the local Chrome MCP server based on project preference.
-      // This only controls the built-in "chrome-mcp" entry; user-configured MCP servers remain untouched.
-      const CHROME_MCP_SERVER_NAME = 'chrome-mcp';
+      // This only controls the built-in "universal-browser-mcp" entry; user-configured MCP servers remain untouched.
+      const UNIVERSAL_BROWSER_MCP_SERVER_NAME = 'universal-browser-mcp';
       if (enableChromeMcp) {
         const existingMcpServers =
           queryOptions.mcpServers &&
@@ -737,7 +737,7 @@ export class ClaudeEngine implements AgentEngine {
 
         queryOptions.mcpServers = {
           ...existingMcpServers,
-          [CHROME_MCP_SERVER_NAME]: {
+          [UNIVERSAL_BROWSER_MCP_SERVER_NAME]: {
             type: 'http',
             url: getChromeMcpUrl(),
           },
@@ -750,8 +750,8 @@ export class ClaudeEngine implements AgentEngine {
       ) {
         // If Chrome MCP is disabled, remove it from existing mcpServers if present
         const existing = queryOptions.mcpServers as Record<string, unknown>;
-        if (CHROME_MCP_SERVER_NAME in existing) {
-          const { [CHROME_MCP_SERVER_NAME]: _removed, ...rest } = existing;
+        if (UNIVERSAL_BROWSER_MCP_SERVER_NAME in existing) {
+          const { [UNIVERSAL_BROWSER_MCP_SERVER_NAME]: _removed, ...rest } = existing;
           if (Object.keys(rest).length > 0) {
             queryOptions.mcpServers = rest;
           } else {

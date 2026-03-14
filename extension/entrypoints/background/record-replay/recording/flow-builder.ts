@@ -3,7 +3,7 @@ import type { Flow, Node, Edge } from '../domain/flow';
 import { FLOW_SCHEMA_VERSION } from '../domain/flow';
 import { STEP_TYPES } from '@/common/step-types';
 import { recordingSession } from './session-manager';
-import { mapStepToNodeConfig, EDGE_LABELS } from 'chrome-mcp-shared';
+import { mapStepToNodeConfig, EDGE_LABELS } from 'universal-browser-mcp-shared';
 
 /**
  * Creates an initial flow structure for recording in V3 format.

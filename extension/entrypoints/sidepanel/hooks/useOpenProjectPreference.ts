@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { OpenProjectTarget, OpenProjectResponse } from 'chrome-mcp-shared';
+import type { OpenProjectTarget, OpenProjectResponse } from 'universal-browser-mcp-shared';
 
 const STORAGE_KEY = 'agent-open-project-default';
 

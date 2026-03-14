@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import type { AgentStoredMessage, CodexReasoningEffort, OpenProjectTarget } from 'chrome-mcp-shared';
+import type { AgentStoredMessage, CodexReasoningEffort, OpenProjectTarget } from 'universal-browser-mcp-shared';
 
 // Hooks
 import {

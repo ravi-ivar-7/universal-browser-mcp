@@ -32,7 +32,7 @@ import { createNotImplementedArtifactService } from './artifacts';
 import { getBreakpointRegistry, type BreakpointManager } from './breakpoints';
 import { findEdgeByLabel, findNextNode, validateFlowDAG } from './traversal';
 import type { RunResult } from './kernel';
-import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { TOOL_NAMES } from 'universal-browser-mcp-shared';
 import { handleCallTool } from '@/entrypoints/background/tools';
 import { logOverlay } from '../../../log-overlay-util';
 

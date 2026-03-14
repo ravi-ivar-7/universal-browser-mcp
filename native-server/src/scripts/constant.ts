@@ -1,4 +1,4 @@
-export const COMMAND_NAME = 'mcp-chrome-bridge';
+export const COMMAND_NAME = 'universal-browser-mcp';
 export const EXTENSION_IDS = [
     'hbdgbgagpkpjffpklnamcljpakneikee', // Original
     'jjhbaaekandinckdlngmmcjiklnhmlpl', // Dev build (.output)

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { NativeMessageType, type AgentEngineInfo, type RealtimeEvent } from 'chrome-mcp-shared';
+import { NativeMessageType, type AgentEngineInfo, type RealtimeEvent } from 'universal-browser-mcp-shared';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 
 interface ServerStatus {

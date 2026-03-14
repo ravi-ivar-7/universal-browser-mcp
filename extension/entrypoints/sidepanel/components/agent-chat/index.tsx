@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import type { AgentSession, AgentProject, AgentUsageStats, CodexReasoningEffort, AgentAttachment, AgentManagementInfo } from 'chrome-mcp-shared';
+import type { AgentSession, AgentProject, AgentUsageStats, CodexReasoningEffort, AgentAttachment, AgentManagementInfo } from 'universal-browser-mcp-shared';
 import type { AgentThemeId } from '../../hooks';
 import { getModelsForCli, getDefaultModelForCli, getCodexReasoningEfforts } from '@/common/agent-models';
 import { AgentServerPortContext } from '../AgentChat';

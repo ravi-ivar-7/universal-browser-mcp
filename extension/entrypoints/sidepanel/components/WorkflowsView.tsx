@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { topoOrder, EDGE_LABELS } from 'chrome-mcp-shared';
+import { topoOrder, EDGE_LABELS } from 'universal-browser-mcp-shared';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 import type { Flow } from '@/entrypoints/background/record-replay/domain/flow';
 import type { RunEvent } from '@/entrypoints/background/record-replay/domain/events';

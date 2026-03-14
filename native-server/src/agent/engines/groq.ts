@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentEngine, EngineExecutionContext, EngineInitOptions } from './types';
 import type { AgentMessage, RealtimeEvent } from '../types';
-import { TOOL_SCHEMAS, NativeMessageType } from 'chrome-mcp-shared';
+import { TOOL_SCHEMAS, NativeMessageType } from 'universal-browser-mcp-shared';
 
 /**
  * GroqEngine integrates Groq's ultra-fast inference API as an AgentEngine implementation.

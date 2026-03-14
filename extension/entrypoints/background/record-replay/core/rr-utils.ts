@@ -5,10 +5,10 @@ import {
   TOOL_NAMES,
   topoOrder as sharedTopoOrder,
   mapNodeToStep as sharedMapNodeToStep,
-} from 'chrome-mcp-shared';
+} from 'universal-browser-mcp-shared';
 import type { Edge as DagEdge, NodeBase as DagNode, Step } from './types';
 import { handleCallTool } from '@/entrypoints/background/tools';
-import { EDGE_LABELS } from 'chrome-mcp-shared';
+import { EDGE_LABELS } from 'universal-browser-mcp-shared';
 
 export function applyAssign(
   target: Record<string, any>,

@@ -1,12 +1,12 @@
 {
-  "name": "mcp-chrome-bridge",
+  "name": "universal-browser-mcp",
   "version": "1.0.29",
   "description": "Chrome Native-Messaging host (Node)",
   "main": "dist/index.js",
   "bin": {
-    "mcp-chrome-bridge": "./dist/cli.js",
-    "chrome-mcp-bridge": "./dist/cli.js",
-    "mcp-chrome-stdio": "./dist/mcp/mcp-server-stdio.js"
+    "universal-browser-mcp": "./dist/cli.js",
+    "universal-browser-mcp-bridge": "./dist/cli.js",
+    "universal-browser-mcp-stdio": "./dist/mcp/mcp-server-stdio.js"
   },
   "scripts": {
     "dev": "nodemon --watch src --ext ts,js,json --ignore dist/ --exec \"npm run build && npm run register:dev\"",
@@ -43,7 +43,7 @@
     "better-sqlite3": "^11.6.0",
     "chalk": "^5.4.1",
     "chrome-devtools-frontend": "^1.0.1299282",
-    "chrome-mcp-shared": "file:../shared",
+    "universal-browser-mcp-shared": "file:../shared",
     "commander": "^13.1.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.38.2",

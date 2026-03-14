@@ -7,7 +7,7 @@ import type {
     AgentStatusEvent,
     AgentCliPreference,
     AgentUsageStats,
-} from 'chrome-mcp-shared';
+} from 'universal-browser-mcp-shared';
 
 export interface AgentActRequestClientMeta {
     [key: string]: any;
